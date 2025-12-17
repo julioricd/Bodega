@@ -23,7 +23,7 @@ export const Hero: React.FC = () => {
                  {COMPANY_INFO.tagline}
                </p>
                <p className="text-xl font-sans">
-                 Doces artesanais, queijos curados e o afeto da produção familiar.
+                 Doces artesanais, queijos curados e o afeto da produção familiar brasileira.
                </p>
              </div>
              <a 
@@ -37,15 +37,16 @@ export const Hero: React.FC = () => {
         </div>
 
         {/* Right Image/Visual */}
-        <div className="lg:col-span-4 relative overflow-hidden h-[400px] lg:h-auto border-t-2 lg:border-t-0 border-roca-dark">
+        <div className="lg:col-span-4 relative overflow-hidden h-[500px] lg:h-auto border-t-2 lg:border-t-0 border-roca-dark">
           <img 
-            src="https://picsum.photos/seed/roca1/800/1200" 
-            alt="Produtos da Roça" 
-            className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
+            src="https://images.unsplash.com/photo-1541336032412-2048a678540d?auto=format&fit=crop&q=80&w=1200" 
+            alt="Seleção colorida e apetitosa de doces e queijos artesanais" 
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-1000 scale-105 hover:scale-100"
           />
-          <div className="absolute inset-0 bg-roca-rust/20 mix-blend-multiply pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 p-4 bg-roca-dark text-white font-mono text-xs w-full">
-            BODEGA GOSTOSURAS DA ROÇA — DESDE 2024
+          <div className="absolute inset-0 bg-roca-rust/5 mix-blend-multiply pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 p-4 bg-roca-dark text-white font-mono text-[10px] w-full flex justify-between items-center">
+            <span>BODEGA GOSTOSURAS DA ROÇA</span>
+            <span className="opacity-50 tracking-[0.2em]">ARTESANAL • NATURAL</span>
           </div>
         </div>
 

@@ -63,9 +63,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ section, whatsappLink 
       {/* Image Preview */}
       <div className="h-48 overflow-hidden border-b-2 border-roca-dark relative">
         <img 
-          src={`https://picsum.photos/seed/${section.imageSeed}/600/400`} 
+          src={section.imageUrl || `https://picsum.photos/seed/fallback/600/400`} 
           alt={section.title}
-          className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-100 group-hover:scale-105" 
+          className="w-full h-full object-cover transition-all duration-500 scale-100 group-hover:scale-105" 
         />
         {isCombo && (
            <div className="absolute bottom-0 right-0 bg-roca-rust text-white font-mono text-xs px-3 py-1 flex items-center gap-1 shadow-lg">

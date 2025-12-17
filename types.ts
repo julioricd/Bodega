@@ -1,3 +1,4 @@
+
 export interface ProductItem {
   name: string;
   isNew?: boolean;
@@ -12,7 +13,7 @@ export interface ProductSection {
   description?: string;
   offerType?: 'standard' | 'combo';
   extraInfo?: string[];
-  imageSeed?: number;
+  imageUrl?: string;
   category: 'doces' | 'queijos' | 'combos';
 }
 
