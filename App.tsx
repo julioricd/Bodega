@@ -4,7 +4,7 @@ import { Marquee } from './components/Marquee';
 import { ProductCard } from './components/ProductCard';
 import { AboutSection } from './components/AboutSection';
 import { PRODUCTS, COMPANY_INFO } from './constants';
-import { Store, Send, CheckCircle, AlertCircle, Filter } from 'lucide-react';
+import { Store, Send, CheckCircle, AlertCircle, Filter, Ship } from 'lucide-react';
 import { validateEmail, validateWhatsAppUrl } from './utils/validation';
 
 function App() {
@@ -54,14 +54,22 @@ function App() {
             <Store className="w-6 h-6 text-roca-rust" />
             <span className="font-mono font-bold uppercase tracking-tighter">Bodega da Roça</span>
         </div>
-        <a 
-            href={safeWhatsappLink}
-            target={safeWhatsappLink !== '#' ? "_blank" : undefined}
-            rel="noopener noreferrer"
-            className={`font-mono text-xs md:text-sm uppercase hover:text-roca-rust underline decoration-roca-rust decoration-2 underline-offset-4 ${safeWhatsappLink === '#' ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-            WhatsApp
-        </a>
+        <div className="flex items-center gap-4 md:gap-6">
+          <a
+              href="simulador.html"
+              className="font-mono text-xs md:text-sm uppercase hover:text-roca-rust underline decoration-roca-rust decoration-2 underline-offset-4 flex items-center gap-1"
+          >
+              <Ship className="w-4 h-4" /> Simulador
+          </a>
+          <a
+              href={safeWhatsappLink}
+              target={safeWhatsappLink !== '#' ? "_blank" : undefined}
+              rel="noopener noreferrer"
+              className={`font-mono text-xs md:text-sm uppercase hover:text-roca-rust underline decoration-roca-rust decoration-2 underline-offset-4 ${safeWhatsappLink === '#' ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+              WhatsApp
+          </a>
+        </div>
       </header>
 
       {/* Spacing for fixed header */}
