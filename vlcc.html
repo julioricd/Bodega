@@ -69,15 +69,42 @@
         el.textContent = text + '\n(toque aqui para fechar)';
       }
       window.addEventListener('error', function (e) {
-        if (!e.message) return; // falha de recurso externo (ex.: fonte) — o jogo segue normal
+        if (!e.message) return; // falha de recurso externo — o jogo segue normal
         vlccShowError('Erro no jogo: ' + e.message);
       });
-      // Se o código do jogo não carregar em 5 s, avisa (ex.: cache antigo ou rede)
-      setTimeout(function () {
-        if (!window.__vlccOk) {
-          vlccShowError('O jogo não carregou. Atualize a página (Ctrl+F5) ou limpe o cache do navegador.');
+      // Vigia de carregamento: se o código não rodar, diagnostica a causa exata
+      var vlccTries = 0;
+      var vlccTimer = setInterval(function () {
+        if (window.__vlccOk) {
+          clearInterval(vlccTimer);
+          var el = document.getElementById('jserr');
+          if (el) el.remove();
+          return;
         }
-      }, 5000);
+        vlccTries++;
+        if (vlccTries < 6) return; // dá 12 s (conexões lentas / versão legada)
+        clearInterval(vlccTimer);
+        var diag = [];
+        var temModulo = 'noModule' in document.createElement('script');
+        if (!temModulo) diag.push('navegador sem suporte a JavaScript moderno');
+        var s = document.querySelector('script[type="module"]');
+        var src = s && (s.src || s.getAttribute('src'));
+        if (src) {
+          try {
+            var x = new XMLHttpRequest();
+            x.open('GET', src, false);
+            x.send();
+            diag.push('arquivo do jogo: HTTP ' + x.status + ' (' +
+              (x.responseText ? x.responseText.length : 0) + ' bytes)');
+          } catch (err) {
+            diag.push('falha de rede ao baixar o jogo: ' + err);
+          }
+        } else {
+          diag.push('script do jogo não encontrado no HTML');
+        }
+        vlccShowError('O jogo não carregou.\nDiagnóstico: ' + diag.join(' · ') +
+          '\nEnvie esta mensagem para o desenvolvedor.');
+      }, 2000);
     </script>
     <canvas id="game"></canvas>
     <button class="touch-btn" id="t-rud-port">◀</button>
