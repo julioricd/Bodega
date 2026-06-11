@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       build: {
+        // alvo conservador: roda em celulares/navegadores mais antigos
+        target: 'es2017',
         rollupOptions: {
           input: {
             main: path.resolve(__dirname, 'index.html'),
