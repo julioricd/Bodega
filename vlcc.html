@@ -57,8 +57,8 @@
   </head>
   <body>
     <script>
-      // Mostra na tela qualquer erro de JavaScript (em vez de tela preta muda)
-      window.addEventListener('error', function (e) {
+      // Mostra na tela apenas erros REAIS de script (ignora falha de fonte/recurso externo)
+      function vlccShowError(text) {
         var el = document.getElementById('jserr');
         if (!el) {
           el = document.createElement('div');
@@ -66,11 +66,21 @@
           el.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:99;' +
             'background:#7a1f1f;color:#fff;font:13px monospace;padding:10px;' +
             'border-radius:8px;white-space:pre-wrap;';
+          el.onclick = function () { el.remove(); };
           document.body.appendChild(el);
         }
-        el.textContent = 'Erro ao carregar o jogo: ' + (e.message || e.error || 'desconhecido') +
-          '\nTente atualizar a página (Ctrl+F5) ou usar um navegador mais novo.';
-      }, true);
+        el.textContent = text + '\n(toque aqui para fechar)';
+      }
+      window.addEventListener('error', function (e) {
+        if (!e.message) return; // falha de recurso externo (ex.: fonte) — o jogo segue normal
+        vlccShowError('Erro no jogo: ' + e.message);
+      });
+      // Se o código do jogo não carregar em 5 s, avisa (ex.: cache antigo ou rede)
+      setTimeout(function () {
+        if (!window.__vlccOk) {
+          vlccShowError('O jogo não carregou. Atualize a página (Ctrl+F5) ou limpe o cache do navegador.');
+        }
+      }, 5000);
     </script>
     <canvas id="game"></canvas>
     <button class="touch-btn" id="t-rud-port">◀</button>

@@ -1860,3 +1860,6 @@ function frame(now: number) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+// sinaliza ao vlcc.html que o jogo carregou (suprime o aviso de falha)
+(window as any).__vlccOk = true;
