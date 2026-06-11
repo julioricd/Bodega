@@ -56,6 +56,22 @@
     </style>
   </head>
   <body>
+    <script>
+      // Mostra na tela qualquer erro de JavaScript (em vez de tela preta muda)
+      window.addEventListener('error', function (e) {
+        var el = document.getElementById('jserr');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'jserr';
+          el.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:99;' +
+            'background:#7a1f1f;color:#fff;font:13px monospace;padding:10px;' +
+            'border-radius:8px;white-space:pre-wrap;';
+          document.body.appendChild(el);
+        }
+        el.textContent = 'Erro ao carregar o jogo: ' + (e.message || e.error || 'desconhecido') +
+          '\nTente atualizar a página (Ctrl+F5) ou usar um navegador mais novo.';
+      }, true);
+    </script>
     <canvas id="game"></canvas>
     <button class="touch-btn" id="t-rud-port">◀</button>
     <button class="touch-btn" id="t-rud-mid">⊙</button>
