@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import legacy from '@vitejs/plugin-legacy';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -11,7 +12,13 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
       },
-      plugins: [react()],
+      plugins: [
+        react(),
+        // Gera versão ES5 + SystemJS para navegadores/WebViews sem suporte a módulos
+        legacy({
+          targets: ['defaults', 'android >= 5', 'chrome >= 50', 'ios >= 10'],
+        }),
+      ],
       build: {
         // alvo conservador: roda em celulares/navegadores mais antigos
         target: 'es2017',
