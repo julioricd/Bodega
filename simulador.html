@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Simulador de Navio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b2a3d;
+        font-family: 'Space Grotesk', sans-serif;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      .touch-btn {
+        position: fixed;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        background: rgba(10, 40, 60, 0.5);
+        color: #fff;
+        font-size: 26px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        touch-action: none;
+      }
+      .touch-btn:active { background: rgba(255, 255, 255, 0.25); }
+      @media (pointer: coarse) {
+        .touch-btn { display: flex; }
+      }
+      #btn-port    { left: 20px;  bottom: 28px; }
+      #btn-stbd    { left: 104px; bottom: 28px; }
+      #btn-up      { right: 20px; bottom: 104px; }
+      #btn-down    { right: 20px; bottom: 28px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <button class="touch-btn" id="btn-port">◀</button>
+    <button class="touch-btn" id="btn-stbd">▶</button>
+    <button class="touch-btn" id="btn-up">▲</button>
+    <button class="touch-btn" id="btn-down">▼</button>
+    <script type="module" src="/simulador/main.ts"></script>
+  </body>
+</html>
