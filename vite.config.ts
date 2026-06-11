@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
           input: {
             main: path.resolve(__dirname, 'index.html'),
             simulador: path.resolve(__dirname, 'simulador.html'),
+            vlcc: path.resolve(__dirname, 'vlcc.html'),
           },
         },
       },

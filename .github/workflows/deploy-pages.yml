@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - claude/ship-simulator-fvdm0x
+      - claude/vlcc-fpso-mooring-sim-c72d04
   workflow_dispatch:
 
 permissions:

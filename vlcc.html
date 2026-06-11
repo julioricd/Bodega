@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Offloading Tandem — VLCC × FPSO Peregrino</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #06222f;
+        font-family: 'Space Grotesk', sans-serif;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #game { display: block; width: 100vw; height: 100vh; }
+      .touch-btn {
+        position: fixed;
+        height: 52px;
+        min-width: 52px;
+        padding: 0 10px;
+        border-radius: 26px;
+        border: 2px solid rgba(255, 255, 255, 0.45);
+        background: rgba(8, 32, 48, 0.55);
+        color: #fff;
+        font-size: 20px;
+        font-family: 'Space Grotesk', sans-serif;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        touch-action: none;
+      }
+      .touch-btn small { font-size: 11px; letter-spacing: 0.04em; }
+      .touch-btn:active { background: rgba(255, 255, 255, 0.25); }
+      @media (pointer: coarse) { .touch-btn { display: flex; } }
+      /* leme — canto inferior esquerdo */
+      #t-rud-port { left: 16px;  bottom: 20px; }
+      #t-rud-mid  { left: 80px;  bottom: 20px; }
+      #t-rud-stbd { left: 144px; bottom: 20px; }
+      /* telégrafo — canto inferior direito */
+      #t-tel-up   { right: 16px; bottom: 84px; }
+      #t-tel-down { right: 16px; bottom: 20px; }
+      /* ações — centro inferior */
+      #t-vhf      { left: 50%; bottom: 20px; transform: translateX(-148px); }
+      #t-action   { left: 50%; bottom: 20px; transform: translateX(-78px); }
+      #t-tug      { left: 50%; bottom: 20px; transform: translateX(8px); }
+      #t-push-pt  { left: 50%; bottom: 20px; transform: translateX(78px); }
+      #t-push-sb  { left: 50%; bottom: 20px; transform: translateX(138px); }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <button class="touch-btn" id="t-rud-port">◀</button>
+    <button class="touch-btn" id="t-rud-mid">⊙</button>
+    <button class="touch-btn" id="t-rud-stbd">▶</button>
+    <button class="touch-btn" id="t-tel-up">▲</button>
+    <button class="touch-btn" id="t-tel-down">▼</button>
+    <button class="touch-btn" id="t-vhf"><small>VHF</small></button>
+    <button class="touch-btn" id="t-action"><small>AÇÃO</small></button>
+    <button class="touch-btn" id="t-tug"><small>REB</small></button>
+    <button class="touch-btn" id="t-push-pt"><small>◁P</small></button>
+    <button class="touch-btn" id="t-push-sb"><small>P▷</small></button>
+    <script type="module" src="/vlcc/main.ts"></script>
+  </body>
+</html>
