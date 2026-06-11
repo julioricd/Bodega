@@ -56,7 +56,7 @@ function App() {
         </div>
         <div className="flex items-center gap-4 md:gap-6">
           <a
-              href="/simulador.html"
+              href="simulador.html"
               className="font-mono text-xs md:text-sm uppercase hover:text-roca-rust underline decoration-roca-rust decoration-2 underline-offset-4 flex items-center gap-1"
           >
               <Ship className="w-4 h-4" /> Simulador
