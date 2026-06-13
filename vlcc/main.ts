@@ -83,10 +83,15 @@ const VLCC_B = 60;
 // Linhas e limites
 const HAWSER_LEN = 150;        // comprimento nominal do hawser do FPSO (m)
 const HAWSER_K = 200;          // rigidez (kN/m de estiramento)
-const HAWSER_ALARM = 1500;     // kN (~153 t)
-const HAWSER_BREAK = 3200;     // kN (~326 t)
-const TUG_LINE_LEN = 500;      // cabo de trabalho do rebocador (m)
-const HOSE_MAX = 420;          // distância máx. popa FPSO → manifold antes da ruptura (m)
+const HAWSER_ALARM = 1275;       // kN (~130 t) — alarme antes da ruptura
+const HAWSER_BREAK = 1766;       // kN (~180 t) — ruptura do hawser
+const HAWSER_BREAK_CHAFE = 1080; // kN (~110 t) — ruptura com abrasão no fairlead
+const TUG_LINE_LEN = 500;        // cabo de trabalho do rebocador (m)
+const HOSE_MAX = 420;            // distância máx. popa FPSO → manifold (backstop)
+const HOSE_PART_T = 20;          // toneladas — ruptura do mangote por tração
+const HOSE_TAUT_MARGIN = 15;     // m de folga antes do mangote começar a tracionar
+const HOSE_K_T = 0.5;            // toneladas por metro de estiramento do mangote
+const HAWSER_GRACE = 300;        // s (5 min) para segurar o navio após romper o hawser
 const WINCH_T = 45;            // s para recolher o hawser
 const HOSE_T = 40;             // s para conectar os mangotes
 const TOTAL_BBL = 1_000_000;   // capacidade do VLCC
@@ -165,12 +170,121 @@ let discAuthorized = false;
 let spillRate = 0;       // bbl/s
 let spilled = 0;         // bbl
 let spillReportT = -1;   // tempo desde o início do vazamento sem comunicação
+let hoseTension = 0;     // toneladas — tração atual no mangote
+let hoseNominal = -1;    // distância manifold→popa FPSO no momento da conexão (m)
+let hawserGraceT = -1;   // > 0: janela (s) para salvar o mangote após romper o hawser
+let pumpStopAsk = false; // sistema pediu para parar a bomba de carga
+let fpsoMoorPhase = 0;   // fase da rotação lenta do FPSO após amarrado
+let pusherHintT = -999;  // controle de repetição da dica da lancha empurradora
 
 // embarcações de apoio
 const msgBoat = { x: 0, y: 0, state: 'idle' as 'idle' | 'enroute' | 'alongside' | 'return', t: 0 };
 const hoseBoat = { x: 0, y: 0 };
 const pusher = { x: 0, y: 0, side: 0 }; // side: -1 empurra p/ BB, +1 p/ BE, 0 parado
 const tug = { x: 0, y: 0, force: 0, dir: 0 }; // índices em TUG_FORCES / TUG_DIRS
+
+// ---------------------------------------------------------------------------
+// Áudio — vento, mar, ruptura e vazamento (Web Audio API)
+// Inicia no primeiro toque/tecla (exigência de autoplay dos navegadores).
+// ---------------------------------------------------------------------------
+const audio = (() => {
+  let ac: AudioContext | null = null;
+  let master: GainNode;
+  let windGain: GainNode, windFilter: BiquadFilterNode;
+  let seaGain: GainNode, seaFilter: BiquadFilterNode;
+  let leakGain: GainNode;
+  let ready = false;
+  let muted = false;
+  let swell = 0;
+
+  function noiseBuffer(c: AudioContext, brown: boolean) {
+    const len = c.sampleRate * 2;
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
+      else d[i] = w;
+    }
+    return buf;
+  }
+
+  function loopSource(c: AudioContext, brown: boolean) {
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer(c, brown);
+    src.loop = true;
+    src.start();
+    return src;
+  }
+
+  function ensure() {
+    if (ready) { if (ac && ac.state === 'suspended') ac.resume(); return; }
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AC) return;
+      const c: AudioContext = new AC();
+      ac = c;
+      master = c.createGain(); master.gain.value = muted ? 0 : 0.9; master.connect(c.destination);
+
+      windFilter = c.createBiquadFilter(); windFilter.type = 'bandpass';
+      windFilter.frequency.value = 500; windFilter.Q.value = 0.6;
+      windGain = c.createGain(); windGain.gain.value = 0;
+      loopSource(c, false).connect(windFilter); windFilter.connect(windGain); windGain.connect(master);
+
+      seaFilter = c.createBiquadFilter(); seaFilter.type = 'lowpass';
+      seaFilter.frequency.value = 360; seaFilter.Q.value = 0.3;
+      seaGain = c.createGain(); seaGain.gain.value = 0;
+      loopSource(c, true).connect(seaFilter); seaFilter.connect(seaGain); seaGain.connect(master);
+
+      const leakFilter = c.createBiquadFilter(); leakFilter.type = 'bandpass';
+      leakFilter.frequency.value = 900; leakFilter.Q.value = 0.8;
+      leakGain = c.createGain(); leakGain.gain.value = 0;
+      loopSource(c, false).connect(leakFilter); leakFilter.connect(leakGain); leakGain.connect(master);
+
+      ready = true;
+    } catch { ready = false; }
+  }
+
+  function update(dt: number) {
+    if (!ready || !ac || muted) return;
+    swell += dt;
+    // vento: 0..35 nós controla volume e brilho; rajada intensifica
+    const wn = clamp(env.windKt / 35, 0, 1.3);
+    const gust = squall.active ? 1.25 : 1;
+    windGain.gain.value += (clamp(wn * 0.5 * gust, 0, 0.6) - windGain.gain.value) * clamp(dt * 2, 0, 1);
+    windFilter.frequency.value = 350 + wn * 900 + (squall.active ? 200 : 0);
+    // mar: altura significativa Hs controla volume, com marola lenta
+    const sn = clamp(env.hs / 5, 0, 1);
+    const wave = 0.6 + 0.4 * Math.sin(swell * 0.6);
+    seaGain.gain.value += (clamp(sn * 0.45 * wave, 0, 0.5) - seaGain.gain.value) * clamp(dt * 2, 0, 1);
+    // vazamento: jorro de óleo controlado pelo spillRate
+    const ln = clamp(spillRate / 60, 0, 1);
+    leakGain.gain.value += (ln * 0.5 - leakGain.gain.value) * clamp(dt * 3, 0, 1);
+  }
+
+  // estampido de ruptura (hawser ou mangote chicoteando)
+  function crack() {
+    if (!ready || !ac || muted) return;
+    const t = ac.currentTime;
+    const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, false);
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1200, t); bp.frequency.exponentialRampToValueAtTime(180, t + 0.4); bp.Q.value = 1.2;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    src.connect(bp); bp.connect(g); g.connect(master); src.start(t); src.stop(t + 0.55);
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.3);
+    const og = ac.createGain(); og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.connect(og); og.connect(master); o.start(t); o.stop(t + 0.4);
+  }
+
+  function toggle() { muted = !muted; if (ready) master.gain.value = muted ? 0 : 0.9; return muted; }
+
+  return { ensure, update, crack, toggle };
+})();
+
+['pointerdown', 'keydown', 'touchstart'].forEach((ev) =>
+  window.addEventListener(ev, () => audio.ensure(), { passive: true }));
 
 // VHF
 let vhfOpen = false;
@@ -299,6 +413,12 @@ function startRun() {
   hoseConnected = false;
   hoseProgress = -1;
   hoseRuptured = false;
+  hoseTension = 0;
+  hoseNominal = -1;
+  hawserGraceT = -1;
+  pumpStopAsk = false;
+  fpsoMoorPhase = 0;
+  pusherHintT = -999;
   pumping = false;
   pumpRequested = false;
   discAuthorized = false;
@@ -484,6 +604,7 @@ window.addEventListener('keydown', (e) => {
     case 'v': case 'V': vhfOpen = true; break;
     case 'f': case 'F': timeScale = timeScale >= 8 ? 1 : timeScale * 2; break;
     case 'p': case 'P': paused = !paused; break;
+    case 'k': case 'K': { const m = audio.toggle(); showMessage(m ? 'Áudio mudo.' : 'Áudio ligado.', 2); break; }
     case '+': case '=': zoomMul = clamp(zoomMul * 1.25, 0.5, 3); break;
     case '-': case '_': zoomMul = clamp(zoomMul / 1.25, 0.5, 3); break;
     case 'Escape': phase = 'setup'; break;
@@ -659,10 +780,17 @@ function updateEnvironment(dt: number) {
 }
 
 function updateFpso(dt: number) {
-  const target = fpsoTargetPsi();
+  // após amarrado, o FPSO gira lentamente (catavento + maré), exigindo
+  // correção com o rebocador para manter o VLCC alinhado.
+  let target = fpsoTargetPsi();
+  if (hawserConnected) {
+    fpsoMoorPhase += dt;
+    target += 7 * DEG * Math.sin(fpsoMoorPhase * 0.012)
+            + 4 * DEG * Math.sin(fpsoMoorPhase * 0.031 + 1.3);
+  }
   const err = norm(target - fpso.psi);
-  const maxRate = 0.12 * DEG;
-  fpso.psi += clamp(err * 0.01, -maxRate, maxRate) * dt;
+  const maxRate = (hawserConnected ? 0.18 : 0.12) * DEG;
+  fpso.psi += clamp(err * 0.02, -maxRate, maxRate) * dt;
 }
 
 function vesselForces(dt: number) {
@@ -752,7 +880,7 @@ function vesselForces(dt: number) {
       N += VLCC_L / 2 * by; // aplicado na proa
     }
     maxTension = Math.max(maxTension, hawserTension);
-    const breakAt = chafeT > 0 ? 1800 : HAWSER_BREAK;
+    const breakAt = chafeT > 0 ? HAWSER_BREAK_CHAFE : HAWSER_BREAK;
     if (hawserTension > breakAt) breakHawser();
   }
 
@@ -769,25 +897,46 @@ function breakHawser() {
   hawserConnected = false;
   winching = false;
   messengerDelivered = false;
+  audio.crack();
   addIncident('Ruptura do hawser por excesso de tensão');
-  showMessage('HAWSER ROMPEU! Comunique o FPSO no VHF e afaste com segurança.', 8);
-  radioLater(2, 'PEREGRINO', 'VLCC, HAWSER ROMPIDO! Afaste com máquina e rebocador. Confirme situação!');
-  if (hoseConnected) ruptureHose();
+
+  // o sistema pede imediatamente para parar a bomba de carga
+  if (pumping || pumpRequested) {
+    pumpStopAsk = true;
+    radio('PEREGRINO', 'VLCC, HAWSER ROMPIDO! PARE A BOMBA DE CARGA AGORA — peça parada/ESD no VHF!');
+  } else {
+    radioLater(2, 'PEREGRINO', 'VLCC, HAWSER ROMPIDO! Afaste com máquina e rebocador. Confirme situação!');
+  }
+
+  if (hoseConnected) {
+    // 5 minutos para segurar o navio com máquina e evitar tracionar/partir o mangote
+    hawserGraceT = HAWSER_GRACE;
+    showMessage('HAWSER ROMPEU! Dê MÁQUINA ADIANTE para segurar o navio — 5 min antes de partir o mangote!', 9);
+    radioLater(3, 'PEREGRINO', 'Mangote ainda conectado! Segure o navio para a frente, senão a linha traciona e rompe!');
+  } else {
+    showMessage('HAWSER ROMPEU! Comunique o FPSO no VHF e afaste com segurança.', 8);
+  }
 }
 
 function ruptureHose() {
   hoseConnected = false;
   hoseProgress = -1;
   hoseRuptured = true;
+  hawserGraceT = -1;
+  hoseTension = 0;
+  audio.crack();
   addIncident('Ruptura do mangote');
+  // óleo vaza sempre: jorro forte com bomba ativa, vazamento residual da linha se já parada
   if (pumping || pumpRequested) {
     spillRate = 60;
     spilled += 300;
-    if (spillReportT < 0) spillReportT = 0;
     showMessage('MANGOTE ROMPEU COM BOMBEIO! Óleo no mar — acione ESD pelo VHF!', 9);
   } else {
-    showMessage('Mangote rompeu por excesso de distância!', 6);
+    spillRate = Math.max(spillRate, 18);
+    spilled += 80;
+    showMessage('MANGOTE ROMPEU! Óleo da linha vazando no mar — comunique o FPSO (VHF)!', 8);
   }
+  if (spillReportT < 0) spillReportT = 0;
 }
 
 function updateMooringLogic(dt: number) {
@@ -798,6 +947,13 @@ function updateMooringLogic(dt: number) {
     approachWarned = true;
     addIncident('Entrou na zona de 500 m sem autorização do FPSO');
     radio('PEREGRINO', 'VLCC, você entrou na zona de segurança SEM autorização! Chame no canal 16 imediatamente!');
+  }
+
+  // perdendo posição junto ao FPSO → sugerir a lancha empurradora
+  if (hawserConnected && bowDist() < 220 && Math.abs(ship.v) > 0.18 && pusher.side === 0
+      && elapsed - pusherHintT > 40) {
+    pusherHintT = elapsed;
+    showMessage('Perdendo posição junto ao FPSO — chame a lancha para empurrar a proa (◁P / P▷).', 5);
   }
 
   // lancha do mensageiro
@@ -863,6 +1019,7 @@ function updateMooringLogic(dt: number) {
       hoseConnected = true;
       hoseRuptured = false;
       hoseProgress = -1;
+      { const mm = shipManifold(); const ss = fpsoStern(); hoseNominal = Math.hypot(mm.x - ss.x, mm.y - ss.y); }
       radio('LANCHA', 'Mangote conectado e testado no manifold. Linha pronta.');
       radioLater(3, 'PEREGRINO', 'Mangotes prontos. Solicite o bombeio quando estiverem prontos a bordo.');
     }
@@ -879,7 +1036,24 @@ function updateMooringLogic(dt: number) {
     hoseBoat.y += (m.y + 40 - hoseBoat.y) * clamp(dt * 0.3, 0, 1);
     const st = fpsoStern();
     const hd = Math.hypot(m.x - st.x, m.y - st.y);
-    if (hd > HOSE_MAX) ruptureHose();
+    // tração do mangote conforme o navio se afasta da conexão (cai à ré)
+    const base = (hoseNominal > 0 ? hoseNominal : hd) + HOSE_TAUT_MARGIN;
+    hoseTension = Math.max(0, (hd - base) * HOSE_K_T);
+    if (hawserGraceT > 0) {
+      // janela de 5 min após romper o hawser
+      hawserGraceT -= dt;
+      if (hoseTension >= HOSE_PART_T) {
+        ruptureHose();                       // não segurou: navio caiu à ré, mangote parte e vaza
+      } else if (hawserGraceT <= 0) {
+        hawserGraceT = -1;                   // segurou o navio: mangote preservado
+        showMessage('Navio seguro — mangote preservado. Suspenda o bombeio e desconecte com calma.', 7);
+        radio('PEREGRINO', 'VLCC segurou a posição. Mangote preservado. Reavaliar a amarração.');
+      }
+    } else if (hoseTension >= HOSE_PART_T || hd > HOSE_MAX) {
+      ruptureHose();                          // tração excessiva também rompe fora da janela
+    }
+  } else {
+    hoseTension = 0;
   }
 
   // posição do rebocador (500 m de cabo pela popa, na direção de puxar)
@@ -1018,6 +1192,8 @@ function update(dt: number) {
   updateFpso(dt);
   vesselForces(dt);
   updateMooringLogic(dt);
+  audio.update(dt);
+  if (!pumping && !pumpRequested) pumpStopAsk = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1441,7 +1617,7 @@ function missionText(): string {
     return 'Amarrado em tandem! Solicite a conexão dos mangotes (N)';
   }
   if (!pumping && !pumpRequested && ship.cargoPct < 100) return 'Mangotes conectados — solicite o início do bombeio (O ou VHF)';
-  if (pumping) return `Bombeio em andamento — mantenha a tensão do hawser abaixo de 150 t (carga ${ship.cargoPct.toFixed(0)}%)`;
+  if (pumping) return `Bombeio em andamento — mantenha a tensão do hawser abaixo de 130 t (carga ${ship.cargoPct.toFixed(0)}%)`;
   if (ship.cargoPct >= 100 && hoseConnected) return 'Carga completa — solicite desconexão (VHF) e desconecte os mangotes (N)';
   return 'Solte o hawser (H) com a tensão aliviada e afaste-se mais de 600 m do FPSO';
 }
@@ -1511,6 +1687,22 @@ function drawHUD(vw: number, vh: number) {
   ctx.fillStyle = '#fff';
   ctx.font = `600 ${13 * ui}px 'Space Grotesk', sans-serif`;
   ctx.fillText(hawserConnected ? `${(hawserTension / 9.81).toFixed(0)} t` : '— desconectado —', pad + 13 * ui, ty + 27 * ui);
+
+  // tração do mangote (aparece com mangote conectado ou na janela de emergência)
+  if (hoseConnected || hawserGraceT > 0) {
+    ty += 40 * ui;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = `${10.5 * ui}px 'DM Mono', monospace`;
+    ctx.fillText('TRAÇÃO DO MANGOTE', pad + 13 * ui, ty);
+    const hfrac = clamp(hoseTension / HOSE_PART_T, 0, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(pad + 13 * ui, ty + 14 * ui, bw, 9 * ui);
+    ctx.fillStyle = hoseTension > HOSE_PART_T * 0.66 ? '#ff5a36' : hoseTension > HOSE_PART_T * 0.33 ? '#ffcf3d' : '#6fd86f';
+    ctx.fillRect(pad + 13 * ui, ty + 14 * ui, bw * hfrac, 9 * ui);
+    ctx.fillStyle = '#fff';
+    ctx.font = `600 ${13 * ui}px 'Space Grotesk', sans-serif`;
+    ctx.fillText(`${hoseTension.toFixed(0)} t / ${HOSE_PART_T} t (ruptura)`, pad + 13 * ui, ty + 27 * ui);
+  }
 
   // ---- painel de ambiente (direita)
   const ew = 198 * ui, eh = 158 * ui;
@@ -1595,6 +1787,8 @@ function drawHUD(vw: number, vh: number) {
   // ---- alarmes
   const alarms: string[] = [];
   if (hawserConnected && hawserTension > HAWSER_ALARM) alarms.push('TENSÃO ALTA NO HAWSER');
+  if (pumpStopAsk && (pumping || pumpRequested)) alarms.push('PARE A BOMBA DE CARGA — HAWSER ROMPIDO');
+  if (hawserGraceT > 0) alarms.push(`SEGURE O NAVIO COM MÁQUINA — ${Math.ceil(hawserGraceT)}s P/ PARTIR O MANGOTE`);
   if (chafeT > 0) alarms.push(`ABRASÃO NO HAWSER — TENSÃO < 100 t (${chafeT.toFixed(0)}s)`);
   if (spillRate > 0) alarms.push('ÓLEO NO MAR — COMUNIQUE O FPSO (VHF)');
   if (squall.active) alarms.push('RAJADA DE VENTO');
