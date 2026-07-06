@@ -83,10 +83,15 @@ const VLCC_B = 60;
 // Linhas e limites
 const HAWSER_LEN = 150;        // comprimento nominal do hawser do FPSO (m)
 const HAWSER_K = 200;          // rigidez (kN/m de estiramento)
-const HAWSER_ALARM = 1200;     // kN (~122 t)
-const HAWSER_BREAK = 1766;     // kN (= 180 t — o cabo parte com estouro)
-const TUG_LINE_LEN = 500;      // cabo de trabalho do rebocador (m)
-const HOSE_MAX = 420;          // distância máx. popa FPSO → manifold antes da ruptura (m)
+const HAWSER_ALARM = 1275;       // kN (~130 t) — alarme antes da ruptura
+const HAWSER_BREAK = 1766;       // kN (~180 t) — ruptura do hawser
+const HAWSER_BREAK_CHAFE = 1080; // kN (~110 t) — ruptura com abrasão no fairlead
+const TUG_LINE_LEN = 500;        // cabo de trabalho do rebocador (m)
+const HOSE_MAX = 420;            // distância máx. popa FPSO → manifold (backstop)
+const HOSE_PART_T = 20;          // toneladas — ruptura do mangote por tração
+const HOSE_TAUT_MARGIN = 15;     // m de folga antes do mangote começar a tracionar
+const HOSE_K_T = 0.5;            // toneladas por metro de estiramento do mangote
+const HAWSER_GRACE = 300;        // s (5 min) para segurar o navio após romper o hawser
 const WINCH_T = 45;            // s para recolher o hawser
 const HOSE_T = 40;             // s para conectar os mangotes
 const TOTAL_BBL = 1_000_000;   // capacidade do VLCC
@@ -165,16 +170,121 @@ let discAuthorized = false;
 let spillRate = 0;       // bbl/s
 let spilled = 0;         // bbl
 let spillReportT = -1;   // tempo desde o início do vazamento sem comunicação
-let hoseGraceT = -1;     // 5 min para segurar o navio após romper o hawser (mangote ainda conectado)
-let pumpStopDemandT = -1; // FPSO exigindo a parada da bomba após a ruptura
-let swingDir = 1;        // sentido do giro lento da plataforma quando amarrado
-let swingT = 0;
+let hoseTension = 0;     // toneladas — tração atual no mangote
+let hoseNominal = -1;    // distância manifold→popa FPSO no momento da conexão (m)
+let hawserGraceT = -1;   // > 0: janela (s) para salvar o mangote após romper o hawser
+let pumpStopAsk = false; // sistema pediu para parar a bomba de carga
+let fpsoMoorPhase = 0;   // fase da rotação lenta do FPSO após amarrado
+let pusherHintT = -999;  // controle de repetição da dica da lancha empurradora
 
 // embarcações de apoio
 const msgBoat = { x: 0, y: 0, state: 'idle' as 'idle' | 'enroute' | 'alongside' | 'return', t: 0 };
 const hoseBoat = { x: 0, y: 0 };
 const pusher = { x: 0, y: 0, side: 0 }; // side: -1 empurra p/ BB, +1 p/ BE, 0 parado
 const tug = { x: 0, y: 0, force: 0, dir: 0 }; // índices em TUG_FORCES / TUG_DIRS
+
+// ---------------------------------------------------------------------------
+// Áudio — vento, mar, ruptura e vazamento (Web Audio API)
+// Inicia no primeiro toque/tecla (exigência de autoplay dos navegadores).
+// ---------------------------------------------------------------------------
+const audio = (() => {
+  let ac: AudioContext | null = null;
+  let master: GainNode;
+  let windGain: GainNode, windFilter: BiquadFilterNode;
+  let seaGain: GainNode, seaFilter: BiquadFilterNode;
+  let leakGain: GainNode;
+  let ready = false;
+  let muted = false;
+  let swell = 0;
+
+  function noiseBuffer(c: AudioContext, brown: boolean) {
+    const len = c.sampleRate * 2;
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
+      else d[i] = w;
+    }
+    return buf;
+  }
+
+  function loopSource(c: AudioContext, brown: boolean) {
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer(c, brown);
+    src.loop = true;
+    src.start();
+    return src;
+  }
+
+  function ensure() {
+    if (ready) { if (ac && ac.state === 'suspended') ac.resume(); return; }
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AC) return;
+      const c: AudioContext = new AC();
+      ac = c;
+      master = c.createGain(); master.gain.value = muted ? 0 : 0.9; master.connect(c.destination);
+
+      windFilter = c.createBiquadFilter(); windFilter.type = 'bandpass';
+      windFilter.frequency.value = 500; windFilter.Q.value = 0.6;
+      windGain = c.createGain(); windGain.gain.value = 0;
+      loopSource(c, false).connect(windFilter); windFilter.connect(windGain); windGain.connect(master);
+
+      seaFilter = c.createBiquadFilter(); seaFilter.type = 'lowpass';
+      seaFilter.frequency.value = 360; seaFilter.Q.value = 0.3;
+      seaGain = c.createGain(); seaGain.gain.value = 0;
+      loopSource(c, true).connect(seaFilter); seaFilter.connect(seaGain); seaGain.connect(master);
+
+      const leakFilter = c.createBiquadFilter(); leakFilter.type = 'bandpass';
+      leakFilter.frequency.value = 900; leakFilter.Q.value = 0.8;
+      leakGain = c.createGain(); leakGain.gain.value = 0;
+      loopSource(c, false).connect(leakFilter); leakFilter.connect(leakGain); leakGain.connect(master);
+
+      ready = true;
+    } catch { ready = false; }
+  }
+
+  function update(dt: number) {
+    if (!ready || !ac || muted) return;
+    swell += dt;
+    // vento: 0..35 nós controla volume e brilho; rajada intensifica
+    const wn = clamp(env.windKt / 35, 0, 1.3);
+    const gust = squall.active ? 1.25 : 1;
+    windGain.gain.value += (clamp(wn * 0.5 * gust, 0, 0.6) - windGain.gain.value) * clamp(dt * 2, 0, 1);
+    windFilter.frequency.value = 350 + wn * 900 + (squall.active ? 200 : 0);
+    // mar: altura significativa Hs controla volume, com marola lenta
+    const sn = clamp(env.hs / 5, 0, 1);
+    const wave = 0.6 + 0.4 * Math.sin(swell * 0.6);
+    seaGain.gain.value += (clamp(sn * 0.45 * wave, 0, 0.5) - seaGain.gain.value) * clamp(dt * 2, 0, 1);
+    // vazamento: jorro de óleo controlado pelo spillRate
+    const ln = clamp(spillRate / 60, 0, 1);
+    leakGain.gain.value += (ln * 0.5 - leakGain.gain.value) * clamp(dt * 3, 0, 1);
+  }
+
+  // estampido de ruptura (hawser ou mangote chicoteando)
+  function crack() {
+    if (!ready || !ac || muted) return;
+    const t = ac.currentTime;
+    const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, false);
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1200, t); bp.frequency.exponentialRampToValueAtTime(180, t + 0.4); bp.Q.value = 1.2;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    src.connect(bp); bp.connect(g); g.connect(master); src.start(t); src.stop(t + 0.55);
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.3);
+    const og = ac.createGain(); og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.connect(og); og.connect(master); o.start(t); o.stop(t + 0.4);
+  }
+
+  function toggle() { muted = !muted; if (ready) master.gain.value = muted ? 0 : 0.9; return muted; }
+
+  return { ensure, update, crack, toggle };
+})();
+
+['pointerdown', 'keydown', 'touchstart'].forEach((ev) =>
+  window.addEventListener(ev, () => audio.ensure(), { passive: true }));
 
 // VHF
 let vhfOpen = false;
@@ -205,133 +315,6 @@ function radioLater(delay: number, from: string, text: string, fn?: () => void) 
 function addIncident(text: string) {
   incidents.push(`${fmtTime(elapsed)} — ${text}`);
 }
-
-// ---------------------------------------------------------------------------
-// Áudio (Web Audio API — gerado em tempo real, sem arquivos externos)
-// ---------------------------------------------------------------------------
-
-let audioCtx: AudioContext | null = null;
-let masterGain: GainNode | null = null;
-let windGain: GainNode | null = null;
-let windFilter: BiquadFilterNode | null = null;
-let seaGain: GainNode | null = null;
-let seaLfoGain: GainNode | null = null;
-let leakGain: GainNode | null = null;
-let audioMuted = false;
-
-function makeNoise(ctx: AudioContext): AudioBufferSourceNode {
-  const len = ctx.sampleRate * 2;
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.loop = true;
-  return src;
-}
-
-function initAudio() {
-  if (audioCtx) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    return;
-  }
-  try {
-    const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!AC) return;
-    const ctx: AudioContext = new AC();
-    audioCtx = ctx;
-    masterGain = ctx.createGain();
-    masterGain.gain.value = 0;
-    masterGain.connect(ctx.destination);
-
-    // vento: ruído em banda média — o volume e o tom sobem com a intensidade
-    const wn = makeNoise(ctx);
-    windFilter = ctx.createBiquadFilter();
-    windFilter.type = 'bandpass';
-    windFilter.frequency.value = 350;
-    windFilter.Q.value = 0.6;
-    windGain = ctx.createGain();
-    windGain.gain.value = 0;
-    wn.connect(windFilter);
-    windFilter.connect(windGain);
-    windGain.connect(masterGain);
-    wn.start();
-
-    // mar: ruído grave com "respiração" lenta — cresce com a altura de onda
-    const sn = makeNoise(ctx);
-    const sf = ctx.createBiquadFilter();
-    sf.type = 'lowpass';
-    sf.frequency.value = 240;
-    seaGain = ctx.createGain();
-    seaGain.gain.value = 0;
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.14;
-    seaLfoGain = ctx.createGain();
-    seaLfoGain.gain.value = 0;
-    lfo.connect(seaLfoGain);
-    seaLfoGain.connect(seaGain.gain);
-    sn.connect(sf);
-    sf.connect(seaGain);
-    seaGain.connect(masterGain);
-    sn.start();
-    lfo.start();
-
-    // vazamento de óleo: chiado agudo contínuo enquanto sai produto
-    const ln = makeNoise(ctx);
-    const lf = ctx.createBiquadFilter();
-    lf.type = 'bandpass';
-    lf.frequency.value = 2200;
-    lf.Q.value = 0.8;
-    leakGain = ctx.createGain();
-    leakGain.gain.value = 0;
-    ln.connect(lf);
-    lf.connect(leakGain);
-    leakGain.connect(masterGain);
-    ln.start();
-  } catch {
-    audioCtx = null;
-  }
-}
-
-function playBang() {
-  // estouro de cabo / impacto no casco: estalo seco + baque grave
-  if (!audioCtx || !masterGain) return;
-  const ctx = audioCtx;
-  const t = ctx.currentTime;
-  const burst = makeNoise(ctx);
-  const bg = ctx.createGain();
-  bg.gain.setValueAtTime(0.9, t);
-  bg.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-  burst.connect(bg);
-  bg.connect(masterGain);
-  burst.start(t);
-  burst.stop(t + 0.4);
-  const thump = ctx.createOscillator();
-  thump.frequency.setValueAtTime(70, t);
-  thump.frequency.exponentialRampToValueAtTime(30, t + 0.5);
-  const tg = ctx.createGain();
-  tg.gain.setValueAtTime(0.8, t);
-  tg.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-  thump.connect(tg);
-  tg.connect(masterGain);
-  thump.start(t);
-  thump.stop(t + 0.7);
-}
-
-function updateAudio() {
-  if (!audioCtx || !windGain || !windFilter || !seaGain || !seaLfoGain || !leakGain || !masterGain) return;
-  masterGain.gain.value = audioMuted || phase !== 'run' || paused ? 0 : 1;
-  const w = clamp(env.windKt / 35, 0, 1.4);
-  windGain.gain.value = 0.04 + 0.42 * w * w;
-  windFilter.frequency.value = 300 + 600 * w;
-  const s = clamp(env.hs / 4, 0, 1);
-  seaGain.gain.value = 0.05 + 0.28 * s;
-  seaLfoGain.gain.value = 0.15 * s;
-  leakGain.gain.value = spillRate > 0 ? 0.35 : 0;
-}
-
-window.addEventListener('pointerdown', initAudio);
-window.addEventListener('keydown', initAudio);
 
 // ---------------------------------------------------------------------------
 // Parâmetros dependentes da carga
@@ -386,9 +369,6 @@ function startRun() {
   spilled = 0;
   spillRate = 0;
   spillReportT = -1;
-  hoseGraceT = -1;
-  pumpStopDemandT = -1;
-  swingT = 0;
   maxTension = 0;
 
   env.windKt = setup.windKt;
@@ -433,6 +413,12 @@ function startRun() {
   hoseConnected = false;
   hoseProgress = -1;
   hoseRuptured = false;
+  hoseTension = 0;
+  hoseNominal = -1;
+  hawserGraceT = -1;
+  pumpStopAsk = false;
+  fpsoMoorPhase = 0;
+  pusherHintT = -999;
   pumping = false;
   pumpRequested = false;
   discAuthorized = false;
@@ -449,7 +435,6 @@ function startRun() {
   tug.x = ship.x - sf.x * (VLCC_L / 2 + TUG_LINE_LEN);
   tug.y = ship.y - sf.y * (VLCC_L / 2 + TUG_LINE_LEN);
 
-  cam3.ok = false;
   phase = 'run';
   radio('PEREGRINO', 'VLCC, aqui FPSO Peregrino no canal 16. Boa manobra. Aguardamos seu chamado.');
   showMessage('Chame o Peregrino no VHF (tecla V) e peça autorização de aproximação.', 7);
@@ -618,9 +603,8 @@ window.addEventListener('keydown', (e) => {
     case 'o': case 'O': requestPump(); break;
     case 'v': case 'V': vhfOpen = true; break;
     case 'f': case 'F': timeScale = timeScale >= 8 ? 1 : timeScale * 2; break;
-    case 'u': case 'U': audioMuted = !audioMuted; showMessage(audioMuted ? 'Som desligado.' : 'Som ligado.', 2); break;
-    case 'c': case 'C': viewMode = viewMode === '3d' ? 'top' : '3d'; break;
     case 'p': case 'P': paused = !paused; break;
+    case 'k': case 'K': { const m = audio.toggle(); showMessage(m ? 'Áudio mudo.' : 'Áudio ligado.', 2); break; }
     case '+': case '=': zoomMul = clamp(zoomMul * 1.25, 0.5, 3); break;
     case '-': case '_': zoomMul = clamp(zoomMul / 1.25, 0.5, 3); break;
     case 'Escape': phase = 'setup'; break;
@@ -724,16 +708,6 @@ function vhfOptions(): { label: string; fn: () => void }[] {
       },
     });
   }
-  if (bowDist() < 900) {
-    opts.push({
-      label: pusher.side === -1 ? 'Lancha empurradora: parar (empurrando p/ BB).' : 'Chamar lancha para empurrar a proa para BOMBORDO.',
-      fn: () => orderPusher(-1),
-    });
-    opts.push({
-      label: pusher.side === 1 ? 'Lancha empurradora: parar (empurrando p/ BE).' : 'Chamar lancha para empurrar a proa para BORESTE.',
-      fn: () => orderPusher(1),
-    });
-  }
   opts.push({
     label: 'Informar posição e situação (teste de comunicação).',
     fn: () => {
@@ -768,17 +742,6 @@ function updateEnvironment(dt: number) {
   env.windDirRate = clamp(env.windDirRate, -0.0025 * drift, 0.0025 * drift);
   env.windDir += env.windDirRate * dt;
 
-  // com o navio amarrado, o vento ronda devagar e a plataforma gira —
-  // use o rebocador (T/G) para trazer o navio de volta ao alinhamento
-  if (hawserConnected) {
-    swingT -= dt;
-    if (swingT <= 0) {
-      swingT = 100 + Math.random() * 140;
-      swingDir = Math.random() < 0.5 ? -1 : 1;
-    }
-    env.windDir += swingDir * 0.1 * DEG * dt;
-  }
-
   // rajada / squall
   if (squall.active) {
     squall.t += dt;
@@ -797,7 +760,7 @@ function updateEnvironment(dt: number) {
       radioLater(2, 'PEREGRINO', 'Atenção VLCC: rajada com mudança de vento se aproximando pelo radar. Monitorem o hawser.');
     } else if (roll < 0.7 && hawserConnected) {
       chafeT = 90;
-      radioLater(2, 'PEREGRINO', 'VLCC, observamos abrasão no hawser junto ao fairlead. Mantenham tensão abaixo de 80 t!');
+      radioLater(2, 'PEREGRINO', 'VLCC, observamos abrasão no hawser junto ao fairlead. Mantenham tensão abaixo de 100 t!');
     } else if (hoseConnected && !hoseLeak) {
       hoseLeak = true;
       radioLater(2, 'LANCHA', 'Lancha de mangotes: há respingo de óleo numa flange! Recomendo parar o bombeio.');
@@ -817,10 +780,17 @@ function updateEnvironment(dt: number) {
 }
 
 function updateFpso(dt: number) {
-  const target = fpsoTargetPsi();
+  // após amarrado, o FPSO gira lentamente (catavento + maré), exigindo
+  // correção com o rebocador para manter o VLCC alinhado.
+  let target = fpsoTargetPsi();
+  if (hawserConnected) {
+    fpsoMoorPhase += dt;
+    target += 7 * DEG * Math.sin(fpsoMoorPhase * 0.012)
+            + 4 * DEG * Math.sin(fpsoMoorPhase * 0.031 + 1.3);
+  }
   const err = norm(target - fpso.psi);
-  const maxRate = 0.12 * DEG;
-  fpso.psi += clamp(err * 0.01, -maxRate, maxRate) * dt;
+  const maxRate = (hawserConnected ? 0.18 : 0.12) * DEG;
+  fpso.psi += clamp(err * 0.02, -maxRate, maxRate) * dt;
 }
 
 function vesselForces(dt: number) {
@@ -910,7 +880,7 @@ function vesselForces(dt: number) {
       N += VLCC_L / 2 * by; // aplicado na proa
     }
     maxTension = Math.max(maxTension, hawserTension);
-    const breakAt = chafeT > 0 ? 1000 : HAWSER_BREAK;
+    const breakAt = chafeT > 0 ? HAWSER_BREAK_CHAFE : HAWSER_BREAK;
     if (hawserTension > breakAt) breakHawser();
   }
 
@@ -927,20 +897,24 @@ function breakHawser() {
   hawserConnected = false;
   winching = false;
   messengerDelivered = false;
-  addIncident('Ruptura do hawser por excesso de tensão (180 t)');
-  playBang();
+  audio.crack();
+  addIncident('Ruptura do hawser por excesso de tensão');
+
+  // o sistema pede imediatamente para parar a bomba de carga
   if (pumping || pumpRequested) {
-    pumpStopDemandT = 30;
-    radioLater(1, 'PEREGRINO', 'HAWSER PARTIU! PAREM A BOMBA DE CARGA — solicitem a parada pelo VHF IMEDIATAMENTE!');
+    pumpStopAsk = true;
+    radio('PEREGRINO', 'VLCC, HAWSER ROMPIDO! PARE A BOMBA DE CARGA AGORA — peça parada/ESD no VHF!');
   } else {
-    radioLater(1, 'PEREGRINO', 'VLCC, HAWSER PARTIDO! Confirme a situação a bordo!');
+    radioLater(2, 'PEREGRINO', 'VLCC, HAWSER ROMPIDO! Afaste com máquina e rebocador. Confirme situação!');
   }
+
   if (hoseConnected) {
-    hoseGraceT = 300; // 5 minutos para segurar o navio
-    radioLater(4, 'PEREGRINO', 'Mangote ainda conectado! Dê máquina AVANTE e segure o navio — a lancha leva 5 min para desconectar.');
-    showMessage('HAWSER PARTIU! Máquina AVANTE — não deixe o navio cair a ré (mangote conectado)!', 10);
+    // 5 minutos para segurar o navio com máquina e evitar tracionar/partir o mangote
+    hawserGraceT = HAWSER_GRACE;
+    showMessage('HAWSER ROMPEU! Dê MÁQUINA ADIANTE para segurar o navio — 5 min antes de partir o mangote!', 9);
+    radioLater(3, 'PEREGRINO', 'Mangote ainda conectado! Segure o navio para a frente, senão a linha traciona e rompe!');
   } else {
-    showMessage('HAWSER PARTIU! Comunique o FPSO no VHF e afaste com segurança.', 8);
+    showMessage('HAWSER ROMPEU! Comunique o FPSO no VHF e afaste com segurança.', 8);
   }
 }
 
@@ -948,56 +922,38 @@ function ruptureHose() {
   hoseConnected = false;
   hoseProgress = -1;
   hoseRuptured = true;
-  hoseGraceT = -1;
-  playBang();
+  hawserGraceT = -1;
+  hoseTension = 0;
+  audio.crack();
   addIncident('Ruptura do mangote');
+  // óleo vaza sempre: jorro forte com bomba ativa, vazamento residual da linha se já parada
   if (pumping || pumpRequested) {
     spillRate = 60;
     spilled += 300;
-    if (spillReportT < 0) spillReportT = 0;
     showMessage('MANGOTE ROMPEU COM BOMBEIO! Óleo no mar — acione ESD pelo VHF!', 9);
   } else {
-    showMessage('Mangote rompeu por excesso de distância!', 6);
+    spillRate = Math.max(spillRate, 18);
+    spilled += 80;
+    showMessage('MANGOTE ROMPEU! Óleo da linha vazando no mar — comunique o FPSO (VHF)!', 8);
   }
+  if (spillReportT < 0) spillReportT = 0;
 }
 
 function updateMooringLogic(dt: number) {
   const d = bowDist();
-
-  // FPSO cobrando a parada da bomba de carga após a ruptura do hawser
-  if (pumpStopDemandT > 0) {
-    if (!pumping && !pumpRequested) {
-      pumpStopDemandT = -1;
-    } else {
-      pumpStopDemandT -= dt;
-      if (pumpStopDemandT <= 0) {
-        addIncident('FPSO acionou o ESD sozinho — bomba não foi parada após a ruptura do hawser');
-        emergencyStop('(FPSO acionou o ESD após a ruptura do hawser)');
-      }
-    }
-  }
-
-  // janela de 5 min: hawser partido com mangote conectado — segure com máquina!
-  if (hoseGraceT > 0) {
-    if (!hoseConnected) {
-      hoseGraceT = -1;
-    } else {
-      hoseGraceT -= dt;
-      if (hoseGraceT <= 0) {
-        hoseGraceT = -1;
-        hoseConnected = false;
-        hoseProgress = -1;
-        radio('LANCHA', 'Mangote desconectado com segurança e recolhido. Bom trabalho segurando o navio!');
-        showMessage('Você segurou o navio! A lancha desconectou o mangote com segurança.', 8);
-      }
-    }
-  }
 
   // autorização de aproximação
   if (!approachAuth && !approachWarned && d < 600) {
     approachWarned = true;
     addIncident('Entrou na zona de 500 m sem autorização do FPSO');
     radio('PEREGRINO', 'VLCC, você entrou na zona de segurança SEM autorização! Chame no canal 16 imediatamente!');
+  }
+
+  // perdendo posição junto ao FPSO → sugerir a lancha empurradora
+  if (hawserConnected && bowDist() < 220 && Math.abs(ship.v) > 0.18 && pusher.side === 0
+      && elapsed - pusherHintT > 40) {
+    pusherHintT = elapsed;
+    showMessage('Perdendo posição junto ao FPSO — chame a lancha para empurrar a proa (◁P / P▷).', 5);
   }
 
   // lancha do mensageiro
@@ -1063,6 +1019,7 @@ function updateMooringLogic(dt: number) {
       hoseConnected = true;
       hoseRuptured = false;
       hoseProgress = -1;
+      { const mm = shipManifold(); const ss = fpsoStern(); hoseNominal = Math.hypot(mm.x - ss.x, mm.y - ss.y); }
       radio('LANCHA', 'Mangote conectado e testado no manifold. Linha pronta.');
       radioLater(3, 'PEREGRINO', 'Mangotes prontos. Solicite o bombeio quando estiverem prontos a bordo.');
     }
@@ -1079,7 +1036,24 @@ function updateMooringLogic(dt: number) {
     hoseBoat.y += (m.y + 40 - hoseBoat.y) * clamp(dt * 0.3, 0, 1);
     const st = fpsoStern();
     const hd = Math.hypot(m.x - st.x, m.y - st.y);
-    if (hd > HOSE_MAX) ruptureHose();
+    // tração do mangote conforme o navio se afasta da conexão (cai à ré)
+    const base = (hoseNominal > 0 ? hoseNominal : hd) + HOSE_TAUT_MARGIN;
+    hoseTension = Math.max(0, (hd - base) * HOSE_K_T);
+    if (hawserGraceT > 0) {
+      // janela de 5 min após romper o hawser
+      hawserGraceT -= dt;
+      if (hoseTension >= HOSE_PART_T) {
+        ruptureHose();                       // não segurou: navio caiu à ré, mangote parte e vaza
+      } else if (hawserGraceT <= 0) {
+        hawserGraceT = -1;                   // segurou o navio: mangote preservado
+        showMessage('Navio seguro — mangote preservado. Suspenda o bombeio e desconecte com calma.', 7);
+        radio('PEREGRINO', 'VLCC segurou a posição. Mangote preservado. Reavaliar a amarração.');
+      }
+    } else if (hoseTension >= HOSE_PART_T || hd > HOSE_MAX) {
+      ruptureHose();                          // tração excessiva também rompe fora da janela
+    }
+  } else {
+    hoseTension = 0;
   }
 
   // posição do rebocador (500 m de cabo pela popa, na direção de puxar)
@@ -1176,7 +1150,6 @@ function checkCollision(dt: number) {
     if (speed > 0.8) {
       spilled += 3000;
       oil.push({ x: pa.x, y: pa.y, r: 40, age: 0 });
-      playBang();
       fail('COLISÃO GRAVE com o FPSO Peregrino! Casco rompido, óleo no mar.');
       return;
     }
@@ -1188,7 +1161,6 @@ function checkCollision(dt: number) {
     ship.u *= 0.4; ship.v *= 0.4; ship.r *= 0.5;
     if (collideCooldown <= 0) {
       collideCooldown = 8;
-      playBang();
       ship.damage += 18 + speed * 25;
       addIncident('Batida no casco do FPSO durante a manobra');
       showMessage('BATIDA NO FPSO! Verifique avarias e comunique no VHF.', 6);
@@ -1220,6 +1192,8 @@ function update(dt: number) {
   updateFpso(dt);
   vesselForces(dt);
   updateMooringLogic(dt);
+  audio.update(dt);
+  if (!pumping && !pumpRequested) pumpStopAsk = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1609,341 +1583,6 @@ function drawLines(scale: number, vw: number, vh: number) {
 }
 
 // ---------------------------------------------------------------------------
-// Visão 3D — câmera baixa (~10° acima do mar), atrás do VLCC
-// ---------------------------------------------------------------------------
-
-let viewMode: '3d' | 'top' = '3d';
-const cam3 = { x: 0, y: 0, z: 90, lx: 0, ly: 0, lz: 0, ok: false };
-
-interface Cam3 {
-  px: number; py: number; pz: number;
-  rx: number; ry: number; rz: number;
-  ux: number; uy: number; uz: number;
-  fx: number; fy: number; fz: number;
-  F: number; vw: number; vh: number;
-}
-
-function buildCam3(vw: number, vh: number): Cam3 {
-  const f = dirVec(ship.psi);
-  const dist = 560 / zoomMul;
-  const alt = 95 / Math.pow(zoomMul, 0.6);
-  // alvo: um ponto adiante do navio (na direção do FPSO quando amarrado)
-  const st = fpsoStern();
-  const toF = { x: st.x - ship.x, y: st.y - ship.y };
-  const dF = Math.hypot(toF.x, toF.y) || 1;
-  const mix = hawserConnected || bowDist() < 700 ? 0.65 : 0.25;
-  const aimx = f.x * (1 - mix) + (toF.x / dF) * mix;
-  const aimy = f.y * (1 - mix) + (toF.y / dF) * mix;
-  const am = Math.hypot(aimx, aimy) || 1;
-  const dx = ship.x - (aimx / am) * dist;
-  const dy = ship.y - (aimy / am) * dist;
-  const tx = ship.x + (aimx / am) * 260;
-  const ty = ship.y + (aimy / am) * 260;
-  if (!cam3.ok) { cam3.x = dx; cam3.y = dy; cam3.z = alt; cam3.lx = tx; cam3.ly = ty; cam3.lz = 5; cam3.ok = true; }
-  const k = 0.03;
-  cam3.x += (dx - cam3.x) * k;
-  cam3.y += (dy - cam3.y) * k;
-  cam3.z += (alt - cam3.z) * k;
-  cam3.lx += (tx - cam3.lx) * k;
-  cam3.ly += (ty - cam3.ly) * k;
-  cam3.lz += (5 - cam3.lz) * k;
-
-  // base da câmera (mundo: x leste, y sul, z para cima)
-  let fx3 = cam3.lx - cam3.x, fy3 = cam3.ly - cam3.y, fz3 = cam3.lz - cam3.z;
-  const fm = Math.hypot(fx3, fy3, fz3) || 1;
-  fx3 /= fm; fy3 /= fm; fz3 /= fm;
-  // right = up × forward (up = 0,0,1)
-  let rx = -fy3, ry = fx3, rz = 0;
-  const rm = Math.hypot(rx, ry) || 1;
-  rx /= rm; ry /= rm;
-  // upv = forward × right
-  const ux = fy3 * rz - fz3 * ry;
-  const uy = fz3 * rx - fx3 * rz;
-  const uz = fx3 * ry - fy3 * rx;
-  const F = (vw / 2) / Math.tan((52 * DEG) / 2);
-  return { px: cam3.x, py: cam3.y, pz: cam3.z, rx, ry, rz, ux, uy, uz, fx: fx3, fy: fy3, fz: fz3, F, vw, vh };
-}
-
-function proj3(c: Cam3, x: number, y: number, z: number): { x: number; y: number; d: number } | null {
-  const dx = x - c.px, dy = y - c.py, dz = z - c.pz;
-  const cz = dx * c.fx + dy * c.fy + dz * c.fz;
-  if (cz < 8) return null;
-  const cx = dx * c.rx + dy * c.ry + dz * c.rz;
-  const cy = dx * c.ux + dy * c.uy + dz * c.uz;
-  return { x: c.vw / 2 + (cx * c.F) / cz, y: c.vh / 2 - (cy * c.F) / cz, d: cz };
-}
-
-function shade(hex: string, k: number): string {
-  const r = clamp(Math.round(parseInt(hex.slice(1, 3), 16) * k), 0, 255);
-  const g = clamp(Math.round(parseInt(hex.slice(3, 5), 16) * k), 0, 255);
-  const b = clamp(Math.round(parseInt(hex.slice(5, 7), 16) * k), 0, 255);
-  return `rgb(${r},${g},${b})`;
-}
-
-// prisma extrudado: contorno no plano do mar, da altura z0 até z1
-function drawPrism3(c: Cam3, pts: { x: number; y: number }[], z0: number, z1: number, sideColor: string, topColor: string | null) {
-  const n = pts.length;
-  const top: ({ x: number; y: number; d: number } | null)[] = [];
-  const bot: ({ x: number; y: number; d: number } | null)[] = [];
-  for (let i = 0; i < n; i++) {
-    top.push(proj3(c, pts[i].x, pts[i].y, z1));
-    bot.push(proj3(c, pts[i].x, pts[i].y, z0));
-  }
-  if (top.some((p) => !p) || bot.some((p) => !p)) return;
-  // paredes de trás para frente
-  const walls: { i: number; j: number; d: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    walls.push({ i, j, d: (top[i]!.d + top[j]!.d) / 2 });
-  }
-  walls.sort((a, b) => b.d - a.d);
-  const lightX = -0.45, lightY = -0.84; // sol de NE
-  for (const w of walls) {
-    const a = pts[w.i], b = pts[w.j];
-    // normal externa da parede (contorno horário na tela do mapa)
-    let nx = b.y - a.y, ny = -(b.x - a.x);
-    const nm = Math.hypot(nx, ny) || 1;
-    nx /= nm; ny /= nm;
-    const lum = 0.55 + 0.45 * Math.max(0, nx * lightX + ny * lightY);
-    ctx.fillStyle = shade(sideColor, lum);
-    ctx.beginPath();
-    ctx.moveTo(top[w.i]!.x, top[w.i]!.y);
-    ctx.lineTo(top[w.j]!.x, top[w.j]!.y);
-    ctx.lineTo(bot[w.j]!.x, bot[w.j]!.y);
-    ctx.lineTo(bot[w.i]!.x, bot[w.i]!.y);
-    ctx.closePath();
-    ctx.fill();
-  }
-  if (topColor) {
-    ctx.fillStyle = topColor;
-    ctx.beginPath();
-    top.forEach((p, i) => (i === 0 ? ctx.moveTo(p!.x, p!.y) : ctx.lineTo(p!.x, p!.y)));
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-// contorno de casco (coords locais: x avante, y boreste), convertido ao mundo
-function hullOutline(cx: number, cy: number, psi: number, L: number, B: number): { x: number; y: number }[] {
-  const local: [number, number][] = [
-    [0.5, 0], [0.34, 0.32], [0.14, 0.5], [-0.32, 0.5], [-0.46, 0.36], [-0.5, 0.18],
-    [-0.5, -0.18], [-0.46, -0.36], [-0.32, -0.5], [0.14, -0.5], [0.34, -0.32],
-  ];
-  const f = dirVec(psi);
-  const s = stbVec(psi);
-  return local.map(([lx, ly]) => ({
-    x: cx + f.x * lx * L + s.x * ly * B,
-    y: cy + f.y * lx * L + s.y * ly * B,
-  }));
-}
-
-function boxOutline(cx: number, cy: number, psi: number, x0: number, x1: number, halfW: number): { x: number; y: number }[] {
-  const f = dirVec(psi);
-  const s = stbVec(psi);
-  const pts: { x: number; y: number }[] = [];
-  for (const [lx, ly] of [[x1, halfW], [x0, halfW], [x0, -halfW], [x1, -halfW]] as [number, number][]) {
-    pts.push({ x: cx + f.x * lx + s.x * ly, y: cy + f.y * lx + s.y * ly });
-  }
-  return pts;
-}
-
-function rope3(c: Cam3, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, sag: number, color: string, width: number) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.beginPath();
-  let started = false;
-  for (let i = 0; i <= 14; i++) {
-    const t = i / 14;
-    const z = z1 + (z2 - z1) * t - sag * 4 * t * (1 - t);
-    const p = proj3(c, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, Math.max(0.4, z));
-    if (!p) { started = false; continue; }
-    if (!started) { ctx.moveTo(p.x, p.y); started = true; }
-    else ctx.lineTo(p.x, p.y);
-  }
-  ctx.stroke();
-}
-
-function render3D(vw: number, vh: number, time: number) {
-  const c = buildCam3(vw, vh);
-
-  // céu e mar divididos pelo horizonte
-  const far = proj3(c, c.px + c.fx * 30000, c.py + c.fy * 30000, 0);
-  const hy = clamp(far ? far.y : vh * 0.35, vh * 0.12, vh * 0.6);
-  const sky = ctx.createLinearGradient(0, 0, 0, hy);
-  sky.addColorStop(0, '#28506b');
-  sky.addColorStop(1, '#9fc3d4');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, vw, hy);
-  const sea = ctx.createLinearGradient(0, hy, 0, vh);
-  sea.addColorStop(0, '#3d6e84');
-  sea.addColorStop(0.25, '#14425c');
-  sea.addColorStop(1, '#082635');
-  ctx.fillStyle = sea;
-  ctx.fillRect(0, hy - 1, vw, vh - hy + 1);
-
-  // ondas: arcos projetados numa grade do mundo à frente da câmera
-  const cell = 70;
-  const ahead = 2200;
-  const cxw = c.px + c.fx * ahead * 0.45;
-  const cyw = c.py + c.fy * ahead * 0.45;
-  const x0 = Math.floor((cxw - ahead * 0.75) / cell);
-  const x1 = Math.floor((cxw + ahead * 0.75) / cell);
-  const y0 = Math.floor((cyw - ahead * 0.75) / cell);
-  const y1 = Math.floor((cyw + ahead * 0.75) / cell);
-  const hsK = env.hs / 2;
-  ctx.strokeStyle = `rgba(255,255,255,${0.07 + 0.07 * hsK})`;
-  ctx.lineWidth = 1.2;
-  for (let gx = x0; gx <= x1; gx++) {
-    for (let gy = y0; gy <= y1; gy++) {
-      const r = hash(gx, gy);
-      if (r < 0.45 - hsK * 0.15) continue;
-      const phaseW = (time * (0.5 + hsK * 0.5) + r * 10) % 4;
-      if (phaseW > 2) continue;
-      const wx = (gx + hash(gx + 7, gy)) * cell;
-      const wy = (gy + hash(gx, gy + 7)) * cell;
-      const p = proj3(c, wx, wy, 0.3 + hsK * Math.sin(time + r * 9));
-      if (!p || p.d > 2600) continue;
-      const len = ((14 + r * 26 * (0.5 + hsK)) * c.F) / p.d;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(0.5, len * (1 - Math.abs(phaseW - 1))), Math.PI * 1.05, Math.PI * 1.6);
-      ctx.stroke();
-    }
-  }
-
-  // objetos ordenados por distância (mais longe primeiro)
-  const items: { d: number; fn: () => void }[] = [];
-  const dist2cam = (x: number, y: number) => Math.hypot(x - c.px, y - c.py);
-
-  // manchas de óleo
-  for (const b of oil) {
-    items.push({
-      d: dist2cam(b.x, b.y),
-      fn: () => {
-        ctx.fillStyle = 'rgba(18, 12, 6, 0.6)';
-        ctx.beginPath();
-        let st = false;
-        for (let i = 0; i <= 12; i++) {
-          const a = (i / 12) * Math.PI * 2;
-          const p = proj3(c, b.x + Math.cos(a) * b.r, b.y + Math.sin(a) * b.r * 0.8, 0.15);
-          if (!p) { st = false; continue; }
-          if (!st) { ctx.moveTo(p.x, p.y); st = true; } else ctx.lineTo(p.x, p.y);
-        }
-        ctx.closePath();
-        ctx.fill();
-      },
-    });
-  }
-
-  // FPSO
-  const fc = { x: (fpsoBow().x + fpsoStern().x) / 2, y: (fpsoBow().y + fpsoStern().y) / 2 };
-  items.push({
-    d: dist2cam(fc.x, fc.y),
-    fn: () => {
-      const deckH = 22;
-      drawPrism3(c, hullOutline(fc.x, fc.y, fpso.psi, FPSO_L, FPSO_B), 0, deckH, '#7a1f1f', '#9c3b2e');
-      // módulos de processo
-      drawPrism3(c, boxOutline(fc.x, fc.y, fpso.psi, -FPSO_L * 0.3, FPSO_L * 0.08, FPSO_B * 0.32), deckH, deckH + 16, '#5d6a72', '#6d7c85');
-      // acomodações à proa + heliponto
-      drawPrism3(c, boxOutline(fc.x, fc.y, fpso.psi, FPSO_L * 0.2, FPSO_L * 0.36, FPSO_B * 0.34), deckH, deckH + 22, '#d9d4c8', '#e9e4d8');
-      const hp = boxOutline(fc.x, fc.y, fpso.psi, FPSO_L * 0.36, FPSO_L * 0.48, FPSO_B * 0.3);
-      drawPrism3(c, hp, deckH + 22, deckH + 24, '#2e6b48', '#2e6b48');
-      // flare na popa com chama
-      const f = dirVec(fpso.psi);
-      const sbase = { x: fc.x - f.x * FPSO_L * 0.42, y: fc.y - f.y * FPSO_L * 0.42 };
-      const pTop = proj3(c, sbase.x, sbase.y, deckH + 55);
-      const pBot = proj3(c, sbase.x, sbase.y, deckH + 10);
-      if (pTop && pBot) {
-        ctx.strokeStyle = '#8a8f94';
-        ctx.lineWidth = Math.max(1, (2.4 * c.F) / pTop.d);
-        ctx.beginPath();
-        ctx.moveTo(pBot.x, pBot.y);
-        ctx.lineTo(pTop.x, pTop.y);
-        ctx.stroke();
-        const fl = 1 + 0.35 * Math.sin(time * 7);
-        const fr = Math.max(2, (5 * fl * c.F) / pTop.d);
-        const g = ctx.createRadialGradient(pTop.x, pTop.y - fr, 0, pTop.x, pTop.y - fr, fr * 2.2);
-        g.addColorStop(0, 'rgba(255, 210, 90, 0.95)');
-        g.addColorStop(0.5, 'rgba(255, 140, 40, 0.7)');
-        g.addColorStop(1, 'rgba(255, 100, 20, 0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(pTop.x, pTop.y - fr, fr * 2.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    },
-  });
-
-  // VLCC
-  items.push({
-    d: dist2cam(ship.x, ship.y),
-    fn: () => {
-      const lf = ship.cargoPct / 100;
-      const deckH = 20 - 11 * lf; // borda-livre alta em lastro, baixa carregado
-      drawPrism3(c, hullOutline(ship.x, ship.y, ship.psi, VLCC_L, VLCC_B), 0, deckH, '#24333f', '#6e3b2a');
-      // superestrutura à ré
-      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, -VLCC_L * 0.47, -VLCC_L * 0.36, VLCC_B * 0.3), deckH, deckH + 24, '#d9d4c8', '#ece7da');
-      // chaminé
-      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, -VLCC_L * 0.45, -VLCC_L * 0.41, VLCC_B * 0.1), deckH + 24, deckH + 33, '#C45D38', '#a34a2d');
-      // castelo de proa
-      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, VLCC_L * 0.4, VLCC_L * 0.47, VLCC_B * 0.2), deckH, deckH + 6, '#39495a', '#455a6b');
-      // manifold a meia-nau (bloco baixo)
-      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, -VLCC_L * 0.03, VLCC_L * 0.03, VLCC_B * 0.42), deckH, deckH + 4, '#caa46a', '#b8934f');
-    },
-  });
-
-  // lanchas e rebocador
-  const boats: { x: number; y: number; psi: number; len: number; color: string; show: boolean }[] = [
-    { x: tug.x, y: tug.y, psi: angleTo(tug.x, tug.y, shipStern().x, shipStern().y) + Math.PI, len: 32, color: '#3f7d4e', show: true },
-    { x: hoseBoat.x, y: hoseBoat.y, psi: angleTo(hoseBoat.x, hoseBoat.y, ship.x, ship.y), len: 18, color: '#c9b23a', show: true },
-    { x: pusher.x, y: pusher.y, psi: pusher.side !== 0 ? ship.psi + (pusher.side > 0 ? -Math.PI / 2 : Math.PI / 2) : ship.psi, len: 20, color: '#4a86c9', show: true },
-    { x: msgBoat.x, y: msgBoat.y, psi: angleTo(msgBoat.x, msgBoat.y, shipBow().x, shipBow().y), len: 16, color: '#d8842b', show: msgBoat.state !== 'idle' },
-  ];
-  for (const b of boats) {
-    if (!b.show) continue;
-    items.push({
-      d: dist2cam(b.x, b.y),
-      fn: () => {
-        drawPrism3(c, hullOutline(b.x, b.y, b.psi, b.len, b.len * 0.34), 0, 3.2, shade(b.color, 0.75), b.color);
-        drawPrism3(c, boxOutline(b.x, b.y, b.psi, -b.len * 0.15, b.len * 0.15, b.len * 0.13), 3.2, 6, '#e8e8e8', '#f4f4f4');
-      },
-    });
-  }
-
-  // cabos e mangote (com catenária visível)
-  const st = fpsoStern();
-  const bow = shipBow();
-  const deckHv = 20 - 11 * (ship.cargoPct / 100);
-  if (hawserConnected || winching) {
-    const taut = hawserTension > 400;
-    const color = hawserTension > HAWSER_ALARM ? '#ff5a36' : '#ffd34d';
-    const sag = hawserConnected ? clamp(18 - hawserTension / 120, 2, 18) : 14;
-    items.push({
-      d: Math.min(dist2cam(st.x, st.y), dist2cam(bow.x, bow.y)) - 5,
-      fn: () => rope3(c, st.x, st.y, 12, bow.x, bow.y, deckHv, taut ? 3 : sag, color, Math.max(1.2, (2.6 * c.F) / dist2cam(bow.x, bow.y))),
-    });
-  }
-  if (hoseConnected || hoseProgress >= 0) {
-    const end = hoseConnected ? shipManifold() : hoseBoat;
-    items.push({
-      d: Math.min(dist2cam(st.x, st.y), dist2cam(end.x, end.y)) - 5,
-      fn: () => {
-        rope3(c, st.x, st.y, 8, end.x, end.y, hoseConnected ? deckHv : 1.5, 10, '#1a130d', Math.max(2, (4 * c.F) / dist2cam(end.x, end.y)));
-      },
-    });
-  }
-  {
-    const stn = shipStern();
-    items.push({
-      d: Math.min(dist2cam(stn.x, stn.y), dist2cam(tug.x, tug.y)) - 5,
-      fn: () => rope3(c, stn.x, stn.y, deckHv, tug.x, tug.y, 3, TUG_FORCES[tug.force] > 0 ? 4 : 22, 'rgba(225,225,235,0.75)', 1.4),
-    });
-  }
-
-  items.sort((a, b) => b.d - a.d);
-  for (const it of items) it.fn();
-}
-
-// ---------------------------------------------------------------------------
 // HUD
 // ---------------------------------------------------------------------------
 
@@ -1964,7 +1603,6 @@ function fmtTime(s: number): string {
 }
 
 function missionText(): string {
-  if (hoseGraceT > 0) return `HAWSER PARTIU! Máquina AVANTE, segure o navio — a lancha desconecta o mangote em ${Math.ceil(hoseGraceT)} s`;
   if (!approachAuth) return 'Chame o Peregrino no VHF (V) e peça autorização de aproximação';
   if (!hawserConnected) {
     if (msgBoat.state === 'enroute') return 'Lancha levando o mensageiro à sua proa — mantenha posição e velocidade baixa';
@@ -1979,7 +1617,7 @@ function missionText(): string {
     return 'Amarrado em tandem! Solicite a conexão dos mangotes (N)';
   }
   if (!pumping && !pumpRequested && ship.cargoPct < 100) return 'Mangotes conectados — solicite o início do bombeio (O ou VHF)';
-  if (pumping) return `Bombeio em andamento — tensão abaixo de 120 t e navio alinhado com o FPSO (carga ${ship.cargoPct.toFixed(0)}%)`;
+  if (pumping) return `Bombeio em andamento — mantenha a tensão do hawser abaixo de 130 t (carga ${ship.cargoPct.toFixed(0)}%)`;
   if (ship.cargoPct >= 100 && hoseConnected) return 'Carga completa — solicite desconexão (VHF) e desconecte os mangotes (N)';
   return 'Solte o hawser (H) com a tensão aliviada e afaste-se mais de 600 m do FPSO';
 }
@@ -2006,16 +1644,13 @@ function drawHUD(vw: number, vh: number) {
   ctx.textAlign = 'left';
 
   // ---- painel de navegação (esquerda)
-  const pw = 252 * ui, ph = 364 * ui;
+  const pw = 252 * ui, ph = 332 * ui;
   ctx.fillStyle = 'rgba(6, 20, 30, 0.78)';
   roundRect(pad, pad, pw, ph, 10 * ui);
   ctx.fill();
 
   const kts = sog() / KNOT;
-  const alignDeg = norm(fpso.psi - ship.psi) / DEG;
   const lines: [string, string, string?][] = [
-    ['ALINHAM. C/ FPSO', hawserConnected ? `${Math.abs(alignDeg).toFixed(0)}° p/ ${alignDeg > 0 ? 'BE' : 'BB'}` : '—',
-      hawserConnected && Math.abs(alignDeg) > 25 ? '#ff5a36' : undefined],
     ['VELOCIDADE', `${kts.toFixed(2)} nós`, kts > 1.5 && bowDist() < 500 ? '#ff5a36' : undefined],
     ['RUMO', `${compass(ship.psi).toFixed(0).padStart(3, '0')}°`],
     ['MÁQUINA', TELEGRAPH[ship.telegraph].label],
@@ -2052,6 +1687,22 @@ function drawHUD(vw: number, vh: number) {
   ctx.fillStyle = '#fff';
   ctx.font = `600 ${13 * ui}px 'Space Grotesk', sans-serif`;
   ctx.fillText(hawserConnected ? `${(hawserTension / 9.81).toFixed(0)} t` : '— desconectado —', pad + 13 * ui, ty + 27 * ui);
+
+  // tração do mangote (aparece com mangote conectado ou na janela de emergência)
+  if (hoseConnected || hawserGraceT > 0) {
+    ty += 40 * ui;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = `${10.5 * ui}px 'DM Mono', monospace`;
+    ctx.fillText('TRAÇÃO DO MANGOTE', pad + 13 * ui, ty);
+    const hfrac = clamp(hoseTension / HOSE_PART_T, 0, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(pad + 13 * ui, ty + 14 * ui, bw, 9 * ui);
+    ctx.fillStyle = hoseTension > HOSE_PART_T * 0.66 ? '#ff5a36' : hoseTension > HOSE_PART_T * 0.33 ? '#ffcf3d' : '#6fd86f';
+    ctx.fillRect(pad + 13 * ui, ty + 14 * ui, bw * hfrac, 9 * ui);
+    ctx.fillStyle = '#fff';
+    ctx.font = `600 ${13 * ui}px 'Space Grotesk', sans-serif`;
+    ctx.fillText(`${hoseTension.toFixed(0)} t / ${HOSE_PART_T} t (ruptura)`, pad + 13 * ui, ty + 27 * ui);
+  }
 
   // ---- painel de ambiente (direita)
   const ew = 198 * ui, eh = 158 * ui;
@@ -2135,11 +1786,10 @@ function drawHUD(vw: number, vh: number) {
 
   // ---- alarmes
   const alarms: string[] = [];
-  if (hoseGraceT > 0) alarms.push(`SEGURE O NAVIO! MANGOTE CONECTADO — ${Math.ceil(hoseGraceT)} s`);
-  if (pumpStopDemandT > 0) alarms.push('PARE A BOMBA DE CARGA (VHF)!');
-  if (hawserConnected && hawserTension > HAWSER_ALARM) alarms.push('TENSÃO ALTA NO HAWSER — PARTE EM 180 t');
-  if (hawserConnected && Math.abs(norm(fpso.psi - ship.psi)) > 30 * DEG) alarms.push('DESALINHADO — USE O REBOCADOR (T/G)');
-  if (chafeT > 0) alarms.push(`ABRASÃO NO HAWSER — TENSÃO < 80 t (${chafeT.toFixed(0)}s)`);
+  if (hawserConnected && hawserTension > HAWSER_ALARM) alarms.push('TENSÃO ALTA NO HAWSER');
+  if (pumpStopAsk && (pumping || pumpRequested)) alarms.push('PARE A BOMBA DE CARGA — HAWSER ROMPIDO');
+  if (hawserGraceT > 0) alarms.push(`SEGURE O NAVIO COM MÁQUINA — ${Math.ceil(hawserGraceT)}s P/ PARTIR O MANGOTE`);
+  if (chafeT > 0) alarms.push(`ABRASÃO NO HAWSER — TENSÃO < 100 t (${chafeT.toFixed(0)}s)`);
   if (spillRate > 0) alarms.push('ÓLEO NO MAR — COMUNIQUE O FPSO (VHF)');
   if (squall.active) alarms.push('RAJADA DE VENTO');
   if (bowDist() < 70) alarms.push('MUITO PRÓXIMO DO FPSO');
@@ -2168,19 +1818,8 @@ function drawHUD(vw: number, vh: number) {
     }
   }
 
-  // ---- botão de vista (3D ↔ topo)
-  hitRegions = [];
-  const vbW = 132 * ui, vbH = 28 * ui;
-  const vbY = pad + ph + 8 * ui;
-  ctx.fillStyle = 'rgba(6, 20, 30, 0.78)';
-  roundRect(pad, vbY, vbW, vbH, 14 * ui);
-  ctx.fill();
-  ctx.fillStyle = '#9fd4ff';
-  ctx.font = `600 ${12 * ui}px 'Space Grotesk', sans-serif`;
-  ctx.fillText(viewMode === '3d' ? 'VISTA: 3D  (C troca)' : 'VISTA: TOPO  (C troca)', pad + 12 * ui, vbY + 7 * ui);
-  hitRegions.push({ x: pad, y: vbY, w: vbW, h: vbH, fn: () => { viewMode = viewMode === '3d' ? 'top' : '3d'; } });
-
   // ---- menu VHF
+  hitRegions = [];
   if (vhfOpen) {
     const opts = vhfOptions();
     const vwid = Math.min(620 * ui, vw * 0.9);
@@ -2224,7 +1863,7 @@ function drawHUD(vw: number, vh: number) {
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
   ctx.font = `${10.5 * ui}px 'DM Mono', monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText('A/D leme ±10° · W/S máquina · ESPAÇO leme a meio · T/G rebocador · 1/2/3 empurradora · M mensageiro · H hawser · N mangote · O bombeio · V VHF · C vista 3D/topo · F tempo ×' + timeScale + ' · U som · P pausa', vw / 2, vh - 20 * ui);
+  ctx.fillText('A/D leme ±10° · W/S máquina · ESPAÇO leme a meio · T/G rebocador · 1/2/3 empurradora · M mensageiro · H hawser · N mangote · O bombeio · V VHF · F tempo ×' + timeScale + ' · P pausa', vw / 2, vh - 20 * ui);
   ctx.textAlign = 'left';
 }
 
@@ -2296,7 +1935,6 @@ function drawSetup(vw: number, vh: number) {
     'A/D leme em passos de 10° · W/S máquina (mto devagar/devagar/meia/toda, AV e RÉ)',
     'T força do rebocador · G direção do reboque · 1/2/3 lancha empurradora',
     'M mensageiro · H hawser · N mangotes · O bombeio · V VHF · F acelerar tempo',
-    'C vista 3D (padrão) ou de topo · U liga/desliga o som · Hawser parte em 180 t!',
   ];
   help.forEach((l, i) => ctx.fillText(l, vw / 2, ry + i * 17 * ui));
   ctx.textAlign = 'left';
@@ -2379,28 +2017,24 @@ function render(time: number) {
     return;
   }
 
-  if (viewMode === '3d') {
-    render3D(vw, vh, time);
-  } else {
-    // câmera de topo: enquadra navio e popa do FPSO
-    const st = fpsoStern();
-    const d = bowDist();
-    const follow = d < 1400;
-    const txc = follow ? (ship.x + st.x) / 2 : ship.x;
-    const tyc = follow ? (ship.y + st.y) / 2 : ship.y;
-    const span = clamp((follow ? d + VLCC_L + FPSO_L : 1500) * 1.25, 750, 3200) / zoomMul;
-    camX += (txc - camX) * 0.04;
-    camY += (tyc - camY) * 0.04;
-    camSpan += (span - camSpan) * 0.03;
-    const scale = Math.min(vw, vh) / camSpan;
+  // câmera: enquadra navio e popa do FPSO
+  const st = fpsoStern();
+  const d = bowDist();
+  const follow = d < 1400;
+  const txc = follow ? (ship.x + st.x) / 2 : ship.x;
+  const tyc = follow ? (ship.y + st.y) / 2 : ship.y;
+  const span = clamp((follow ? d + VLCC_L + FPSO_L : 1500) * 1.25, 750, 3200) / zoomMul;
+  camX += (txc - camX) * 0.04;
+  camY += (tyc - camY) * 0.04;
+  camSpan += (span - camSpan) * 0.03;
+  const scale = Math.min(vw, vh) / camSpan;
 
-    drawWater(scale, vw, vh, time);
-    drawOil(scale, vw, vh);
-    drawFpso(scale, vw, vh, time);
-    drawLines(scale, vw, vh);
-    drawSupport(scale, vw, vh);
-    drawVlcc(scale, vw, vh);
-  }
+  drawWater(scale, vw, vh, time);
+  drawOil(scale, vw, vh);
+  drawFpso(scale, vw, vh, time);
+  drawLines(scale, vw, vh);
+  drawSupport(scale, vw, vh);
+  drawVlcc(scale, vw, vh);
 
   if (phase === 'run') {
     drawHUD(vw, vh);
@@ -2416,7 +2050,6 @@ function frame(now: number) {
   const simDt = dtRaw * timeScale;
   const steps = Math.max(1, Math.ceil(simDt / 0.05));
   for (let i = 0; i < steps; i++) update(simDt / steps);
-  updateAudio();
   render(now / 1000);
   requestAnimationFrame(frame);
 }
