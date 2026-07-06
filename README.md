@@ -45,7 +45,7 @@ com offloading completo. Com o servidor rodando, acesse
 
 **Recursos simulados:**
 - Visão 3D em ângulo baixo (~10° sobre o mar) atrás do VLCC — tecla C alterna com a vista de topo
-- Sons gerados em tempo real: vento (cresce com a intensidade), mar (cresce com a onda), estouro do hawser a 180 t, impacto de colisão e vazamento de óleo (tecla U liga/desliga)
+- Sons gerados em tempo real: vento (cresce com a intensidade), mar (cresce com a onda), estouro do hawser a 180 t, impacto de colisão e vazamento de óleo (tecla K liga/desliga)
 - Hawser do FPSO com 150 m (tensão, alarme, abrasão e ruptura a 180 t)
 - Hawser partido com mangote conectado: 5 minutos para segurar o navio com máquina avante — se cair a ré, o mangote parte e vaza óleo; o FPSO cobra a parada da bomba pelo VHF
 - Com o navio amarrado, a plataforma gira lentamente — use o rebocador para manter o alinhamento (indicador no painel)
@@ -63,4 +63,4 @@ com offloading completo. Com o servidor rodando, acesse
 - `T` — força do rebocador · `G` — direção do reboque
 - `1`/`2`/`3` — lancha empurradora (BB / parar / BE)
 - `M` — lancha do mensageiro · `H` — hawser · `N` — mangotes · `O` — bombeio
-- `V` — VHF · `C` — vista 3D/topo · `U` — som · `F` — acelerar o tempo · `P` — pausa · `+`/`-` — zoom
+- `V` — VHF · `C` — vista 3D/topo · `K` — som · `F` — acelerar o tempo · `P` — pausa · `+`/`-` — zoom
