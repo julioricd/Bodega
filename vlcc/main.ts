@@ -435,6 +435,7 @@ function startRun() {
   tug.x = ship.x - sf.x * (VLCC_L / 2 + TUG_LINE_LEN);
   tug.y = ship.y - sf.y * (VLCC_L / 2 + TUG_LINE_LEN);
 
+  cam3.ok = false;
   phase = 'run';
   radio('PEREGRINO', 'VLCC, aqui FPSO Peregrino no canal 16. Boa manobra. Aguardamos seu chamado.');
   showMessage('Chame o Peregrino no VHF (tecla V) e peça autorização de aproximação.', 7);
@@ -604,6 +605,7 @@ window.addEventListener('keydown', (e) => {
     case 'v': case 'V': vhfOpen = true; break;
     case 'f': case 'F': timeScale = timeScale >= 8 ? 1 : timeScale * 2; break;
     case 'p': case 'P': paused = !paused; break;
+    case 'c': case 'C': viewMode = viewMode === '3d' ? 'top' : '3d'; break;
     case 'k': case 'K': { const m = audio.toggle(); showMessage(m ? 'Áudio mudo.' : 'Áudio ligado.', 2); break; }
     case '+': case '=': zoomMul = clamp(zoomMul * 1.25, 0.5, 3); break;
     case '-': case '_': zoomMul = clamp(zoomMul / 1.25, 0.5, 3); break;
@@ -706,6 +708,16 @@ function vhfOptions(): { label: string; fn: () => void }[] {
         radio('VLCC', 'Peregrino, carga completa e ullages conferidos. Solicito desconexão.');
         radioLater(4, 'PEREGRINO', 'Autorizado. Desconecte mangotes, depois o hawser, e abra para mais de 600 m.', () => { discAuthorized = true; });
       },
+    });
+  }
+  if (bowDist() < 900) {
+    opts.push({
+      label: pusher.side === -1 ? 'Lancha empurradora: parar (empurrando p/ BB).' : 'Chamar lancha para empurrar a proa para BOMBORDO.',
+      fn: () => orderPusher(-1),
+    });
+    opts.push({
+      label: pusher.side === 1 ? 'Lancha empurradora: parar (empurrando p/ BE).' : 'Chamar lancha para empurrar a proa para BORESTE.',
+      fn: () => orderPusher(1),
     });
   }
   opts.push({
@@ -1150,6 +1162,7 @@ function checkCollision(dt: number) {
     if (speed > 0.8) {
       spilled += 3000;
       oil.push({ x: pa.x, y: pa.y, r: 40, age: 0 });
+      audio.crack();
       fail('COLISÃO GRAVE com o FPSO Peregrino! Casco rompido, óleo no mar.');
       return;
     }
@@ -1161,6 +1174,7 @@ function checkCollision(dt: number) {
     ship.u *= 0.4; ship.v *= 0.4; ship.r *= 0.5;
     if (collideCooldown <= 0) {
       collideCooldown = 8;
+      audio.crack();
       ship.damage += 18 + speed * 25;
       addIncident('Batida no casco do FPSO durante a manobra');
       showMessage('BATIDA NO FPSO! Verifique avarias e comunique no VHF.', 6);
@@ -1583,6 +1597,341 @@ function drawLines(scale: number, vw: number, vh: number) {
 }
 
 // ---------------------------------------------------------------------------
+// Visão 3D — câmera baixa (~10° acima do mar), atrás do VLCC
+// ---------------------------------------------------------------------------
+
+let viewMode: '3d' | 'top' = '3d';
+const cam3 = { x: 0, y: 0, z: 90, lx: 0, ly: 0, lz: 0, ok: false };
+
+interface Cam3 {
+  px: number; py: number; pz: number;
+  rx: number; ry: number; rz: number;
+  ux: number; uy: number; uz: number;
+  fx: number; fy: number; fz: number;
+  F: number; vw: number; vh: number;
+}
+
+function buildCam3(vw: number, vh: number): Cam3 {
+  const f = dirVec(ship.psi);
+  const dist = 560 / zoomMul;
+  const alt = 95 / Math.pow(zoomMul, 0.6);
+  // alvo: um ponto adiante do navio (na direção do FPSO quando amarrado)
+  const st = fpsoStern();
+  const toF = { x: st.x - ship.x, y: st.y - ship.y };
+  const dF = Math.hypot(toF.x, toF.y) || 1;
+  const mix = hawserConnected || bowDist() < 700 ? 0.65 : 0.25;
+  const aimx = f.x * (1 - mix) + (toF.x / dF) * mix;
+  const aimy = f.y * (1 - mix) + (toF.y / dF) * mix;
+  const am = Math.hypot(aimx, aimy) || 1;
+  const dx = ship.x - (aimx / am) * dist;
+  const dy = ship.y - (aimy / am) * dist;
+  const tx = ship.x + (aimx / am) * 260;
+  const ty = ship.y + (aimy / am) * 260;
+  if (!cam3.ok) { cam3.x = dx; cam3.y = dy; cam3.z = alt; cam3.lx = tx; cam3.ly = ty; cam3.lz = 5; cam3.ok = true; }
+  const k = 0.03;
+  cam3.x += (dx - cam3.x) * k;
+  cam3.y += (dy - cam3.y) * k;
+  cam3.z += (alt - cam3.z) * k;
+  cam3.lx += (tx - cam3.lx) * k;
+  cam3.ly += (ty - cam3.ly) * k;
+  cam3.lz += (5 - cam3.lz) * k;
+
+  // base da câmera (mundo: x leste, y sul, z para cima)
+  let fx3 = cam3.lx - cam3.x, fy3 = cam3.ly - cam3.y, fz3 = cam3.lz - cam3.z;
+  const fm = Math.hypot(fx3, fy3, fz3) || 1;
+  fx3 /= fm; fy3 /= fm; fz3 /= fm;
+  // right = up × forward (up = 0,0,1)
+  let rx = -fy3, ry = fx3;
+  const rm = Math.hypot(rx, ry) || 1;
+  rx /= rm; ry /= rm;
+  // upv = forward × right
+  const ux = -fz3 * ry;
+  const uy = fz3 * rx;
+  const uz = fx3 * ry - fy3 * rx;
+  const F = (vw / 2) / Math.tan((52 * DEG) / 2);
+  return { px: cam3.x, py: cam3.y, pz: cam3.z, rx, ry, rz: 0, ux, uy, uz, fx: fx3, fy: fy3, fz: fz3, F, vw, vh };
+}
+
+function proj3(c: Cam3, x: number, y: number, z: number): { x: number; y: number; d: number } | null {
+  const dx = x - c.px, dy = y - c.py, dz = z - c.pz;
+  const cz = dx * c.fx + dy * c.fy + dz * c.fz;
+  if (cz < 8) return null;
+  const cx = dx * c.rx + dy * c.ry + dz * c.rz;
+  const cy = dx * c.ux + dy * c.uy + dz * c.uz;
+  return { x: c.vw / 2 + (cx * c.F) / cz, y: c.vh / 2 - (cy * c.F) / cz, d: cz };
+}
+
+function shade(hex: string, k: number): string {
+  const r = clamp(Math.round(parseInt(hex.slice(1, 3), 16) * k), 0, 255);
+  const g = clamp(Math.round(parseInt(hex.slice(3, 5), 16) * k), 0, 255);
+  const b = clamp(Math.round(parseInt(hex.slice(5, 7), 16) * k), 0, 255);
+  return `rgb(${r},${g},${b})`;
+}
+
+// prisma extrudado: contorno no plano do mar, da altura z0 até z1
+function drawPrism3(c: Cam3, pts: { x: number; y: number }[], z0: number, z1: number, sideColor: string, topColor: string | null) {
+  const n = pts.length;
+  const top: ({ x: number; y: number; d: number } | null)[] = [];
+  const bot: ({ x: number; y: number; d: number } | null)[] = [];
+  for (let i = 0; i < n; i++) {
+    top.push(proj3(c, pts[i].x, pts[i].y, z1));
+    bot.push(proj3(c, pts[i].x, pts[i].y, z0));
+  }
+  if (top.some((p) => !p) || bot.some((p) => !p)) return;
+  // paredes de trás para frente
+  const walls: { i: number; j: number; d: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    walls.push({ i, j, d: (top[i]!.d + top[j]!.d) / 2 });
+  }
+  walls.sort((a, b) => b.d - a.d);
+  const lightX = -0.45, lightY = -0.84; // sol de NE
+  for (const w of walls) {
+    const a = pts[w.i], b = pts[w.j];
+    // normal externa da parede (contorno horário na tela do mapa)
+    let nx = b.y - a.y, ny = -(b.x - a.x);
+    const nm = Math.hypot(nx, ny) || 1;
+    nx /= nm; ny /= nm;
+    const lum = 0.55 + 0.45 * Math.max(0, nx * lightX + ny * lightY);
+    ctx.fillStyle = shade(sideColor, lum);
+    ctx.beginPath();
+    ctx.moveTo(top[w.i]!.x, top[w.i]!.y);
+    ctx.lineTo(top[w.j]!.x, top[w.j]!.y);
+    ctx.lineTo(bot[w.j]!.x, bot[w.j]!.y);
+    ctx.lineTo(bot[w.i]!.x, bot[w.i]!.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  if (topColor) {
+    ctx.fillStyle = topColor;
+    ctx.beginPath();
+    top.forEach((p, i) => (i === 0 ? ctx.moveTo(p!.x, p!.y) : ctx.lineTo(p!.x, p!.y)));
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// contorno de casco (coords locais: x avante, y boreste), convertido ao mundo
+function hullOutline(cx: number, cy: number, psi: number, L: number, B: number): { x: number; y: number }[] {
+  const local: [number, number][] = [
+    [0.5, 0], [0.34, 0.32], [0.14, 0.5], [-0.32, 0.5], [-0.46, 0.36], [-0.5, 0.18],
+    [-0.5, -0.18], [-0.46, -0.36], [-0.32, -0.5], [0.14, -0.5], [0.34, -0.32],
+  ];
+  const f = dirVec(psi);
+  const s = stbVec(psi);
+  return local.map(([lx, ly]) => ({
+    x: cx + f.x * lx * L + s.x * ly * B,
+    y: cy + f.y * lx * L + s.y * ly * B,
+  }));
+}
+
+function boxOutline(cx: number, cy: number, psi: number, x0: number, x1: number, halfW: number): { x: number; y: number }[] {
+  const f = dirVec(psi);
+  const s = stbVec(psi);
+  const pts: { x: number; y: number }[] = [];
+  for (const [lx, ly] of [[x1, halfW], [x0, halfW], [x0, -halfW], [x1, -halfW]] as [number, number][]) {
+    pts.push({ x: cx + f.x * lx + s.x * ly, y: cy + f.y * lx + s.y * ly });
+  }
+  return pts;
+}
+
+function rope3(c: Cam3, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, sag: number, color: string, width: number) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i <= 14; i++) {
+    const t = i / 14;
+    const z = z1 + (z2 - z1) * t - sag * 4 * t * (1 - t);
+    const p = proj3(c, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, Math.max(0.4, z));
+    if (!p) { started = false; continue; }
+    if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+}
+
+function render3D(vw: number, vh: number, time: number) {
+  const c = buildCam3(vw, vh);
+
+  // céu e mar divididos pelo horizonte
+  const far = proj3(c, c.px + c.fx * 30000, c.py + c.fy * 30000, 0);
+  const hy = clamp(far ? far.y : vh * 0.35, vh * 0.12, vh * 0.6);
+  const sky = ctx.createLinearGradient(0, 0, 0, hy);
+  sky.addColorStop(0, '#28506b');
+  sky.addColorStop(1, '#9fc3d4');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, vw, hy);
+  const sea = ctx.createLinearGradient(0, hy, 0, vh);
+  sea.addColorStop(0, '#3d6e84');
+  sea.addColorStop(0.25, '#14425c');
+  sea.addColorStop(1, '#082635');
+  ctx.fillStyle = sea;
+  ctx.fillRect(0, hy - 1, vw, vh - hy + 1);
+
+  // ondas: arcos projetados numa grade do mundo à frente da câmera
+  const cell = 70;
+  const ahead = 2200;
+  const cxw = c.px + c.fx * ahead * 0.45;
+  const cyw = c.py + c.fy * ahead * 0.45;
+  const x0 = Math.floor((cxw - ahead * 0.75) / cell);
+  const x1 = Math.floor((cxw + ahead * 0.75) / cell);
+  const y0 = Math.floor((cyw - ahead * 0.75) / cell);
+  const y1 = Math.floor((cyw + ahead * 0.75) / cell);
+  const hsK = env.hs / 2;
+  ctx.strokeStyle = `rgba(255,255,255,${0.07 + 0.07 * hsK})`;
+  ctx.lineWidth = 1.2;
+  for (let gx = x0; gx <= x1; gx++) {
+    for (let gy = y0; gy <= y1; gy++) {
+      const r = hash(gx, gy);
+      if (r < 0.45 - hsK * 0.15) continue;
+      const phaseW = (time * (0.5 + hsK * 0.5) + r * 10) % 4;
+      if (phaseW > 2) continue;
+      const wx = (gx + hash(gx + 7, gy)) * cell;
+      const wy = (gy + hash(gx, gy + 7)) * cell;
+      const p = proj3(c, wx, wy, 0.3 + hsK * Math.sin(time + r * 9));
+      if (!p || p.d > 2600) continue;
+      const len = ((14 + r * 26 * (0.5 + hsK)) * c.F) / p.d;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.5, len * (1 - Math.abs(phaseW - 1))), Math.PI * 1.05, Math.PI * 1.6);
+      ctx.stroke();
+    }
+  }
+
+  // objetos ordenados por distância (mais longe primeiro)
+  const items: { d: number; fn: () => void }[] = [];
+  const dist2cam = (x: number, y: number) => Math.hypot(x - c.px, y - c.py);
+
+  // manchas de óleo
+  for (const b of oil) {
+    items.push({
+      d: dist2cam(b.x, b.y),
+      fn: () => {
+        ctx.fillStyle = 'rgba(18, 12, 6, 0.6)';
+        ctx.beginPath();
+        let st2 = false;
+        for (let i = 0; i <= 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          const p = proj3(c, b.x + Math.cos(a) * b.r, b.y + Math.sin(a) * b.r * 0.8, 0.15);
+          if (!p) { st2 = false; continue; }
+          if (!st2) { ctx.moveTo(p.x, p.y); st2 = true; } else ctx.lineTo(p.x, p.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      },
+    });
+  }
+
+  // FPSO
+  const fc = { x: (fpsoBow().x + fpsoStern().x) / 2, y: (fpsoBow().y + fpsoStern().y) / 2 };
+  items.push({
+    d: dist2cam(fc.x, fc.y),
+    fn: () => {
+      const deckH = 22;
+      drawPrism3(c, hullOutline(fc.x, fc.y, fpso.psi, FPSO_L, FPSO_B), 0, deckH, '#7a1f1f', '#9c3b2e');
+      // módulos de processo
+      drawPrism3(c, boxOutline(fc.x, fc.y, fpso.psi, -FPSO_L * 0.3, FPSO_L * 0.08, FPSO_B * 0.32), deckH, deckH + 16, '#5d6a72', '#6d7c85');
+      // acomodações à proa + heliponto
+      drawPrism3(c, boxOutline(fc.x, fc.y, fpso.psi, FPSO_L * 0.2, FPSO_L * 0.36, FPSO_B * 0.34), deckH, deckH + 22, '#d9d4c8', '#e9e4d8');
+      const hp = boxOutline(fc.x, fc.y, fpso.psi, FPSO_L * 0.36, FPSO_L * 0.48, FPSO_B * 0.3);
+      drawPrism3(c, hp, deckH + 22, deckH + 24, '#2e6b48', '#2e6b48');
+      // flare na popa com chama
+      const f = dirVec(fpso.psi);
+      const sbase = { x: fc.x - f.x * FPSO_L * 0.42, y: fc.y - f.y * FPSO_L * 0.42 };
+      const pTop = proj3(c, sbase.x, sbase.y, deckH + 55);
+      const pBot = proj3(c, sbase.x, sbase.y, deckH + 10);
+      if (pTop && pBot) {
+        ctx.strokeStyle = '#8a8f94';
+        ctx.lineWidth = Math.max(1, (2.4 * c.F) / pTop.d);
+        ctx.beginPath();
+        ctx.moveTo(pBot.x, pBot.y);
+        ctx.lineTo(pTop.x, pTop.y);
+        ctx.stroke();
+        const fl = 1 + 0.35 * Math.sin(time * 7);
+        const fr = Math.max(2, (5 * fl * c.F) / pTop.d);
+        const g = ctx.createRadialGradient(pTop.x, pTop.y - fr, 0, pTop.x, pTop.y - fr, fr * 2.2);
+        g.addColorStop(0, 'rgba(255, 210, 90, 0.95)');
+        g.addColorStop(0.5, 'rgba(255, 140, 40, 0.7)');
+        g.addColorStop(1, 'rgba(255, 100, 20, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(pTop.x, pTop.y - fr, fr * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    },
+  });
+
+  // VLCC
+  items.push({
+    d: dist2cam(ship.x, ship.y),
+    fn: () => {
+      const lf = ship.cargoPct / 100;
+      const deckH = 20 - 11 * lf; // borda-livre alta em lastro, baixa carregado
+      drawPrism3(c, hullOutline(ship.x, ship.y, ship.psi, VLCC_L, VLCC_B), 0, deckH, '#24333f', '#6e3b2a');
+      // superestrutura à ré
+      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, -VLCC_L * 0.47, -VLCC_L * 0.36, VLCC_B * 0.3), deckH, deckH + 24, '#d9d4c8', '#ece7da');
+      // chaminé
+      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, -VLCC_L * 0.45, -VLCC_L * 0.41, VLCC_B * 0.1), deckH + 24, deckH + 33, '#C45D38', '#a34a2d');
+      // castelo de proa
+      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, VLCC_L * 0.4, VLCC_L * 0.47, VLCC_B * 0.2), deckH, deckH + 6, '#39495a', '#455a6b');
+      // manifold a meia-nau (bloco baixo)
+      drawPrism3(c, boxOutline(ship.x, ship.y, ship.psi, -VLCC_L * 0.03, VLCC_L * 0.03, VLCC_B * 0.42), deckH, deckH + 4, '#caa46a', '#b8934f');
+    },
+  });
+
+  // lanchas e rebocador
+  const boats: { x: number; y: number; psi: number; len: number; color: string; show: boolean }[] = [
+    { x: tug.x, y: tug.y, psi: angleTo(tug.x, tug.y, shipStern().x, shipStern().y) + Math.PI, len: 32, color: '#3f7d4e', show: true },
+    { x: hoseBoat.x, y: hoseBoat.y, psi: angleTo(hoseBoat.x, hoseBoat.y, ship.x, ship.y), len: 18, color: '#c9b23a', show: true },
+    { x: pusher.x, y: pusher.y, psi: pusher.side !== 0 ? ship.psi + (pusher.side > 0 ? -Math.PI / 2 : Math.PI / 2) : ship.psi, len: 20, color: '#4a86c9', show: true },
+    { x: msgBoat.x, y: msgBoat.y, psi: angleTo(msgBoat.x, msgBoat.y, shipBow().x, shipBow().y), len: 16, color: '#d8842b', show: msgBoat.state !== 'idle' },
+  ];
+  for (const b of boats) {
+    if (!b.show) continue;
+    items.push({
+      d: dist2cam(b.x, b.y),
+      fn: () => {
+        drawPrism3(c, hullOutline(b.x, b.y, b.psi, b.len, b.len * 0.34), 0, 3.2, shade(b.color, 0.75), b.color);
+        drawPrism3(c, boxOutline(b.x, b.y, b.psi, -b.len * 0.15, b.len * 0.15, b.len * 0.13), 3.2, 6, '#e8e8e8', '#f4f4f4');
+      },
+    });
+  }
+
+  // cabos e mangote (com catenária visível)
+  const st = fpsoStern();
+  const bow = shipBow();
+  const deckHv = 20 - 11 * (ship.cargoPct / 100);
+  if (hawserConnected || winching) {
+    const taut = hawserTension > 400;
+    const color = hawserTension > HAWSER_ALARM ? '#ff5a36' : '#ffd34d';
+    const sag = hawserConnected ? clamp(18 - hawserTension / 120, 2, 18) : 14;
+    items.push({
+      d: Math.min(dist2cam(st.x, st.y), dist2cam(bow.x, bow.y)) - 5,
+      fn: () => rope3(c, st.x, st.y, 12, bow.x, bow.y, deckHv, taut ? 3 : sag, color, Math.max(1.2, (2.6 * c.F) / dist2cam(bow.x, bow.y))),
+    });
+  }
+  if (hoseConnected || hoseProgress >= 0) {
+    const end = hoseConnected ? shipManifold() : hoseBoat;
+    items.push({
+      d: Math.min(dist2cam(st.x, st.y), dist2cam(end.x, end.y)) - 5,
+      fn: () => {
+        rope3(c, st.x, st.y, 8, end.x, end.y, hoseConnected ? deckHv : 1.5, 10, '#1a130d', Math.max(2, (4 * c.F) / dist2cam(end.x, end.y)));
+      },
+    });
+  }
+  {
+    const stn = shipStern();
+    items.push({
+      d: Math.min(dist2cam(stn.x, stn.y), dist2cam(tug.x, tug.y)) - 5,
+      fn: () => rope3(c, stn.x, stn.y, deckHv, tug.x, tug.y, 3, TUG_FORCES[tug.force] > 0 ? 4 : 22, 'rgba(225,225,235,0.75)', 1.4),
+    });
+  }
+
+  items.sort((a, b) => b.d - a.d);
+  for (const it of items) it.fn();
+}
+
+// ---------------------------------------------------------------------------
 // HUD
 // ---------------------------------------------------------------------------
 
@@ -1644,13 +1993,16 @@ function drawHUD(vw: number, vh: number) {
   ctx.textAlign = 'left';
 
   // ---- painel de navegação (esquerda)
-  const pw = 252 * ui, ph = 332 * ui;
+  const pw = 252 * ui, ph = 364 * ui;
   ctx.fillStyle = 'rgba(6, 20, 30, 0.78)';
   roundRect(pad, pad, pw, ph, 10 * ui);
   ctx.fill();
 
   const kts = sog() / KNOT;
+  const alignDeg = norm(fpso.psi - ship.psi) / DEG;
   const lines: [string, string, string?][] = [
+    ['ALINHAM. C/ FPSO', hawserConnected ? `${Math.abs(alignDeg).toFixed(0)}° p/ ${alignDeg > 0 ? 'BE' : 'BB'}` : '—',
+      hawserConnected && Math.abs(alignDeg) > 25 ? '#ff5a36' : undefined],
     ['VELOCIDADE', `${kts.toFixed(2)} nós`, kts > 1.5 && bowDist() < 500 ? '#ff5a36' : undefined],
     ['RUMO', `${compass(ship.psi).toFixed(0).padStart(3, '0')}°`],
     ['MÁQUINA', TELEGRAPH[ship.telegraph].label],
@@ -1789,6 +2141,7 @@ function drawHUD(vw: number, vh: number) {
   if (hawserConnected && hawserTension > HAWSER_ALARM) alarms.push('TENSÃO ALTA NO HAWSER');
   if (pumpStopAsk && (pumping || pumpRequested)) alarms.push('PARE A BOMBA DE CARGA — HAWSER ROMPIDO');
   if (hawserGraceT > 0) alarms.push(`SEGURE O NAVIO COM MÁQUINA — ${Math.ceil(hawserGraceT)}s P/ PARTIR O MANGOTE`);
+  if (hawserConnected && Math.abs(norm(fpso.psi - ship.psi)) > 30 * DEG) alarms.push('DESALINHADO — USE O REBOCADOR (T/G)');
   if (chafeT > 0) alarms.push(`ABRASÃO NO HAWSER — TENSÃO < 100 t (${chafeT.toFixed(0)}s)`);
   if (spillRate > 0) alarms.push('ÓLEO NO MAR — COMUNIQUE O FPSO (VHF)');
   if (squall.active) alarms.push('RAJADA DE VENTO');
@@ -1818,8 +2171,19 @@ function drawHUD(vw: number, vh: number) {
     }
   }
 
-  // ---- menu VHF
+  // ---- botão de vista (3D ↔ topo)
   hitRegions = [];
+  const vbW = 132 * ui, vbH = 28 * ui;
+  const vbY = pad + ph + 8 * ui;
+  ctx.fillStyle = 'rgba(6, 20, 30, 0.78)';
+  roundRect(pad, vbY, vbW, vbH, 14 * ui);
+  ctx.fill();
+  ctx.fillStyle = '#9fd4ff';
+  ctx.font = `600 ${12 * ui}px 'Space Grotesk', sans-serif`;
+  ctx.fillText(viewMode === '3d' ? 'VISTA: 3D  (C troca)' : 'VISTA: TOPO  (C troca)', pad + 12 * ui, vbY + 7 * ui);
+  hitRegions.push({ x: pad, y: vbY, w: vbW, h: vbH, fn: () => { viewMode = viewMode === '3d' ? 'top' : '3d'; } });
+
+  // ---- menu VHF
   if (vhfOpen) {
     const opts = vhfOptions();
     const vwid = Math.min(620 * ui, vw * 0.9);
@@ -1863,7 +2227,7 @@ function drawHUD(vw: number, vh: number) {
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
   ctx.font = `${10.5 * ui}px 'DM Mono', monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText('A/D leme ±10° · W/S máquina · ESPAÇO leme a meio · T/G rebocador · 1/2/3 empurradora · M mensageiro · H hawser · N mangote · O bombeio · V VHF · F tempo ×' + timeScale + ' · P pausa', vw / 2, vh - 20 * ui);
+  ctx.fillText('A/D leme ±10° · W/S máquina · ESPAÇO leme a meio · T/G rebocador · 1/2/3 empurradora · M mensageiro · H hawser · N mangote · O bombeio · V VHF · C vista 3D/topo · K som · F tempo ×' + timeScale + ' · P pausa', vw / 2, vh - 20 * ui);
   ctx.textAlign = 'left';
 }
 
@@ -1935,6 +2299,7 @@ function drawSetup(vw: number, vh: number) {
     'A/D leme em passos de 10° · W/S máquina (mto devagar/devagar/meia/toda, AV e RÉ)',
     'T força do rebocador · G direção do reboque · 1/2/3 lancha empurradora',
     'M mensageiro · H hawser · N mangotes · O bombeio · V VHF · F acelerar tempo',
+    'C vista 3D (padrão) ou de topo · K liga/desliga o som · Hawser parte em 180 t!',
   ];
   help.forEach((l, i) => ctx.fillText(l, vw / 2, ry + i * 17 * ui));
   ctx.textAlign = 'left';
@@ -2017,24 +2382,28 @@ function render(time: number) {
     return;
   }
 
-  // câmera: enquadra navio e popa do FPSO
-  const st = fpsoStern();
-  const d = bowDist();
-  const follow = d < 1400;
-  const txc = follow ? (ship.x + st.x) / 2 : ship.x;
-  const tyc = follow ? (ship.y + st.y) / 2 : ship.y;
-  const span = clamp((follow ? d + VLCC_L + FPSO_L : 1500) * 1.25, 750, 3200) / zoomMul;
-  camX += (txc - camX) * 0.04;
-  camY += (tyc - camY) * 0.04;
-  camSpan += (span - camSpan) * 0.03;
-  const scale = Math.min(vw, vh) / camSpan;
+  if (viewMode === '3d') {
+    render3D(vw, vh, time);
+  } else {
+    // câmera de topo: enquadra navio e popa do FPSO
+    const st = fpsoStern();
+    const d = bowDist();
+    const follow = d < 1400;
+    const txc = follow ? (ship.x + st.x) / 2 : ship.x;
+    const tyc = follow ? (ship.y + st.y) / 2 : ship.y;
+    const span = clamp((follow ? d + VLCC_L + FPSO_L : 1500) * 1.25, 750, 3200) / zoomMul;
+    camX += (txc - camX) * 0.04;
+    camY += (tyc - camY) * 0.04;
+    camSpan += (span - camSpan) * 0.03;
+    const scale = Math.min(vw, vh) / camSpan;
 
-  drawWater(scale, vw, vh, time);
-  drawOil(scale, vw, vh);
-  drawFpso(scale, vw, vh, time);
-  drawLines(scale, vw, vh);
-  drawSupport(scale, vw, vh);
-  drawVlcc(scale, vw, vh);
+    drawWater(scale, vw, vh, time);
+    drawOil(scale, vw, vh);
+    drawFpso(scale, vw, vh, time);
+    drawLines(scale, vw, vh);
+    drawSupport(scale, vw, vh);
+    drawVlcc(scale, vw, vh);
+  }
 
   if (phase === 'run') {
     drawHUD(vw, vh);
