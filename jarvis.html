@@ -632,6 +632,7 @@ async function processCommand(text){
       body: JSON.stringify({
         model: CONFIG.model,
         max_tokens: 400,
+        thinking: { type: "disabled" },
         system: buildSystem(),
         messages: history
       })
@@ -645,7 +646,11 @@ async function processCommand(text){
       return;
     }
     const data = await res.json();
-    let reply = (data.content && data.content[0] && data.content[0].text) ? data.content[0].text.trim() : "";
+    let reply = "";
+    if(Array.isArray(data.content)){
+      data.content.forEach(b => { if(b.type === "text" && b.text) reply += b.text; });
+    }
+    reply = reply.trim();
     if(!reply){
       busy = false;
       const msg = "Curioso, " + CONFIG.address + " — recebi uma resposta vazia. Poderia repetir?";
