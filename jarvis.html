@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>JARVIS · Assistente Pessoal</title>
+<style>
+  :root{
+    --theme:#f5c542;
+    --theme-soft:rgba(245,197,66,.35);
+    --theme-glow:rgba(245,197,66,.18);
+    --violet:#8b7cff;
+    --bg:#05060c;
+    --panel:#0b0e1a;
+    --panel2:#10142a;
+    --line:#1c2240;
+    --txt:#e8eaf6;
+    --dim:#8a90a6;
+    --ok:#10b981;
+    --err:#ff5547;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(1200px 700px at 50% -10%, #131a33 0%, var(--bg) 55%);
+    color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow-x:hidden;
+  }
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+
+  /* ---------- TELA 1: BOOT ---------- */
+  #boot,#gate{
+    position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;background:var(--bg);
+    transition:opacity .8s ease;text-align:center;padding:20px;
+  }
+  .bigname{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:clamp(46px,12vw,110px);font-weight:800;letter-spacing:.18em;
+    background:linear-gradient(90deg,var(--theme) 10%,#c99a2e 45%,var(--violet) 90%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 60px var(--theme-glow);
+    animation:nameGlow 3s ease-in-out infinite;
+  }
+  @keyframes nameGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
+  .hrgrad{width:min(520px,80vw);height:2px;border:0;
+    background:linear-gradient(90deg,transparent,var(--theme),var(--violet),transparent)}
+  #bootMsg{color:var(--theme);letter-spacing:.35em;font-size:13px;animation:blink 1s step-end infinite}
+  @keyframes blink{50%{opacity:.15}}
+  .ver{color:var(--dim);font-size:11px;letter-spacing:.3em}
+  #boot.fade{opacity:0;pointer-events:none}
+
+  /* ---------- TELA 2: ATIVAÇÃO ---------- */
+  #gate{opacity:0;pointer-events:none;z-index:49}
+  #gate.show{opacity:1;pointer-events:auto}
+  #gate.fade{opacity:0;pointer-events:none}
+  #btnActivate{
+    margin-top:8px;padding:16px 42px;font-size:16px;letter-spacing:.25em;font-weight:700;
+    font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--theme);
+    background:rgba(245,197,66,.06);border:1px solid var(--theme);border-radius:8px;
+    cursor:pointer;transition:.25s;box-shadow:0 0 24px var(--theme-glow),inset 0 0 18px rgba(245,197,66,.05);
+  }
+  #btnActivate:hover{background:rgba(245,197,66,.16);box-shadow:0 0 44px var(--theme-soft)}
+  .hint{color:var(--dim);letter-spacing:.35em;font-size:11px}
+
+  /* ---------- APP ---------- */
+  #app{display:none;max-width:1080px;margin:0 auto;padding:14px 14px 60px}
+  #app.on{display:block;animation:fadeIn .8s ease}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+  #topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+    padding:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  #brand{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;letter-spacing:.22em;
+    font-size:20px;background:linear-gradient(90deg,var(--theme),var(--violet));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  #keywrap{display:flex;gap:8px;align-items:center;flex:1;min-width:230px;max-width:460px}
+  #apiKey{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    border-radius:8px;padding:9px 12px;font-size:13px;outline:none}
+  #apiKey:focus{border-color:var(--theme)}
+  #keyState{font-size:11px;white-space:nowrap;color:var(--dim)}
+  #keyState.ok{color:var(--ok)}
+
+  /* orbe / reator */
+  #stage{display:flex;flex-direction:column;align-items:center;padding:26px 0 8px}
+  #orb{position:relative;width:min(210px,52vw);height:min(210px,52vw);cursor:pointer;user-select:none}
+  #orb .ring{position:absolute;inset:0;border-radius:50%;border:1px solid var(--theme-soft)}
+  #orb .r2{inset:-14px;border-color:rgba(245,197,66,.16);animation:spin 14s linear infinite}
+  #orb .r3{inset:-28px;border-color:rgba(139,124,255,.14);animation:spin 22s linear infinite reverse}
+  #orb .r2::before,#orb .r3::before{content:"";position:absolute;top:-3px;left:50%;width:6px;height:6px;
+    border-radius:50%;background:var(--theme);box-shadow:0 0 10px var(--theme)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #core{position:absolute;inset:14%;border-radius:50%;
+    background:radial-gradient(circle at 38% 34%, #fff7dd 0%, var(--theme) 26%, #8a6a12 62%, #171204 100%);
+    box-shadow:0 0 60px var(--theme-soft),0 0 130px var(--theme-glow),inset 0 0 34px rgba(0,0,0,.55);
+    animation:idlePulse 3.4s ease-in-out infinite;
+  }
+  @keyframes idlePulse{0%,100%{transform:scale(1);filter:brightness(.95)}50%{transform:scale(1.045);filter:brightness(1.12)}}
+  @keyframes listenPulse{0%,100%{transform:scale(1);filter:brightness(1.05)}50%{transform:scale(1.10);filter:brightness(1.4)}}
+  @keyframes thinkPulse{0%,100%{transform:scale(.97);filter:brightness(.9) hue-rotate(0deg)}50%{transform:scale(1.06);filter:brightness(1.5) hue-rotate(35deg)}}
+  @keyframes speakPulse{0%,100%{transform:scale(1)}25%{transform:scale(1.06)}50%{transform:scale(1.015)}75%{transform:scale(1.075)}}
+  #orb.listening #core{animation:listenPulse 1.15s ease-in-out infinite}
+  #orb.thinking #core{animation:thinkPulse .55s ease-in-out infinite}
+  #orb.speaking #core{animation:speakPulse .9s ease-in-out infinite}
+  #orb .wave{position:absolute;inset:0;border-radius:50%;border:2px solid var(--theme);
+    opacity:0;pointer-events:none}
+  #orb.listening .wave,#orb.speaking .wave{animation:waveOut 1.6s ease-out infinite}
+  #orb.speaking .wave{animation-duration:2.2s;border-color:var(--violet)}
+  #orb .w2{animation-delay:.55s !important}
+  #orb .w3{animation-delay:1.1s !important}
+  @keyframes waveOut{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.65);opacity:0}}
+
+  #status{margin-top:20px;font-size:12px;letter-spacing:.3em;color:var(--theme);
+    text-transform:uppercase;min-height:18px;text-align:center}
+  #lines{width:100%;max-width:760px;margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .linebox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;line-height:1.5}
+  .linebox b{font-size:10px;letter-spacing:.25em;display:block;margin-bottom:3px;color:var(--dim)}
+  #youLine b{color:var(--theme)}
+  #botLine b{color:var(--violet)}
+
+  #controls{width:100%;max-width:760px;display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  #txtIn{flex:1;min-width:200px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    border-radius:10px;padding:12px 14px;font-size:14px;outline:none}
+  #txtIn:focus{border-color:var(--theme)}
+  .cbtn{padding:12px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);
+    color:var(--txt);font-size:17px;cursor:pointer;transition:.2s;min-width:52px}
+  .cbtn:hover{border-color:var(--theme)}
+  #btnMic.live{border-color:var(--theme);color:var(--theme);box-shadow:0 0 16px var(--theme-glow)}
+
+  /* ---------- SECOND BRAIN ---------- */
+  #brain{margin-top:34px;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  #brainBar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  #brainBar h2{font-size:14px;letter-spacing:.18em}
+  #brainBar .sub{font-size:11px;color:var(--dim)}
+  #brainBar .grow{flex:1}
+  #countTag{font-size:11px;color:var(--theme);letter-spacing:.08em;white-space:nowrap}
+  .sbtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--txt);font-size:15px;cursor:pointer;line-height:1}
+  .sbtn:hover{border-color:var(--theme);color:var(--theme)}
+  #graphWrap{width:100%;background:radial-gradient(700px 340px at 50% 45%, rgba(139,124,255,.07), transparent 70%)}
+  #graphWrap svg{width:100%;height:auto;display:block}
+
+  .edge{fill:none;stroke:url(#edgeGrad);stroke-width:1.3;opacity:.5;
+    stroke-dasharray:6 10;animation:dashSlide 1.6s linear infinite}
+  @keyframes dashSlide{to{stroke-dashoffset:-32}}
+  .ray{stroke-width:.7;opacity:.28}
+  .nodeG{cursor:pointer}
+  .nodeG:hover .nCore{filter:brightness(1.5)}
+  .nRing{transform-box:fill-box;transform-origin:center;animation:breath 3s ease-in-out infinite}
+  @keyframes breath{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.75;transform:scale(1.22)}}
+  .coreG{transform-box:fill-box;transform-origin:center;animation:coreBeat 2.6s ease-in-out infinite}
+  @keyframes coreBeat{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+  .nLabel{font-size:11px;fill:#cdd2e6;text-anchor:middle;font-family:inherit;pointer-events:none}
+  .flash .nCore{animation:flashN .5s ease-in-out 5}
+  @keyframes flashN{0%,100%{filter:brightness(1)}50%{filter:brightness(2.6) drop-shadow(0 0 8px #fff)}}
+  .legT{font-size:11px;fill:#cdd2e6;font-family:inherit}
+  .legOK{font-size:11px;fill:var(--ok);font-family:inherit}
+
+  /* ---------- MODAL ---------- */
+  #modal{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;
+    background:rgba(3,4,10,.75);padding:16px}
+  #modal.on{display:flex}
+  #mcard{width:min(460px,94vw);background:var(--panel2);border:1px solid var(--line);
+    border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px}
+  #mcard h3{font-size:13px;letter-spacing:.2em;color:var(--theme)}
+  #mcard label{font-size:11px;color:var(--dim);letter-spacing:.1em}
+  #mcard input,#mcard select,#mcard textarea{width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--txt);border-radius:8px;padding:10px 12px;font-size:14px;outline:none;font-family:inherit}
+  #mcard textarea{min-height:96px;resize:vertical}
+  #mrow{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .mbtn{padding:10px 16px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+    color:var(--txt);cursor:pointer;font-size:13px}
+  .mbtn.save{border-color:var(--theme);color:var(--theme)}
+  .mbtn.del{border-color:var(--err);color:var(--err);margin-right:auto}
+
+  #warn{max-width:760px;margin:10px auto 0;color:var(--err);font-size:13px;text-align:center;min-height:16px}
+  @media(max-width:640px){
+    #topbar{flex-direction:column;align-items:stretch}
+    #keywrap{max-width:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- TELA 1 · BOOT -->
+<div id="boot">
+  <div class="bigname">JARVIS</div>
+  <hr class="hrgrad">
+  <div id="bootMsg" class="mono">SINCRONIZANDO DADOS...</div>
+  <div class="ver mono">v5.0 · REBUILD</div>
+</div>
+
+<!-- TELA 2 · ATIVAÇÃO -->
+<div id="gate">
+  <div class="bigname">JARVIS</div>
+  <hr class="hrgrad">
+  <button id="btnActivate">► ATIVAR SISTEMA</button>
+  <div class="hint mono">CLIQUE PARA INICIAR</div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div id="topbar">
+    <div id="brand">J.A.R.V.I.S</div>
+    <div id="keywrap">
+      <input id="apiKey" type="password" placeholder="Cole sua API key da Anthropic (sk-ant-...)" autocomplete="off">
+      <span id="keyState">sem chave</span>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="orb" title="Clique para falar">
+      <div class="wave w1"></div><div class="wave w2"></div><div class="wave w3"></div>
+      <div class="ring r2"></div><div class="ring r3"></div><div class="ring"></div>
+      <div id="core"></div>
+    </div>
+    <div id="status" class="mono">SISTEMAS ONLINE</div>
+    <div id="warn"></div>
+
+    <div id="lines">
+      <div class="linebox" id="youLine"><b>VOCÊ</b><span id="youTxt">—</span></div>
+      <div class="linebox" id="botLine"><b>JARVIS</b><span id="botTxt">Às ordens, Master.</span></div>
+    </div>
+
+    <div id="controls">
+      <input id="txtIn" type="text" placeholder="ou digite e tecle Enter…">
+      <button id="btnMic" class="cbtn" title="Ativar escuta">🎤</button>
+      <button id="btnStop" class="cbtn" title="Interromper fala">⏹</button>
+    </div>
+  </div>
+
+  <!-- SECOND BRAIN -->
+  <div id="brain">
+    <div id="brainBar">
+      <h2>🧠 SECOND BRAIN</h2>
+      <span class="sub">memória viva do Master · clique num nó para editar</span>
+      <span class="grow"></span>
+      <span id="countTag" class="mono">0 notas · 0 áreas</span>
+      <button id="btnAdd" class="sbtn" title="Nova nota">＋</button>
+      <button id="btnReload" class="sbtn" title="Recarregar grafo">⟳</button>
+    </div>
+    <div id="graphWrap"></div>
+  </div>
+</div>
+
+<!-- MODAL EDITOR -->
+<div id="modal">
+  <div id="mcard">
+    <h3 id="mTitle">EDITAR NOTA</h3>
+    <div><label>TÍTULO</label><input id="mNoteTitle" type="text"></div>
+    <div><label>ÁREA</label><select id="mNoteArea"></select></div>
+    <div><label>CONTEÚDO</label><textarea id="mNoteBody"></textarea></div>
+    <div id="mrow">
+      <button class="mbtn del" id="mDel">Excluir</button>
+      <button class="mbtn" id="mCancel">Cancelar</button>
+      <button class="mbtn save" id="mSave">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ═══════════════════ CONFIG (respostas da entrevista) ═══════════════════ */
+const CONFIG = {
+  name: "Jarvis",
+  address: "Master",
+  themeColor: "#f5c542",           // dourado
+  persona: "formal britânico (mordomo)",
+  wakeWord: "ei jarvis",           // minúsculo, sem acento
+  voiceGender: "male",
+  model: "claude-sonnet-5"
+};
+
+const AREA = {
+  metas:       { label:"Metas",       color:"#fbbf24" },
+  trabalho:    { label:"Carreira",    color:"#ff5547" },
+  projetos:    { label:"Projetos",    color:"#8b7cff" },
+  financas:    { label:"Finanças",    color:"#f7931a" },
+  aprendizado: { label:"Aprendizado", color:"#2dd4ff" },
+  saude:       { label:"Saúde",       color:"#10b981" },
+  relacoes:    { label:"Relações",    color:"#ec4899" },
+  meta:        { label:"Perfil",      color:"#8a90a6" }
+};
+
+const NOTES = [
+  { id:"perfil", area:"meta", title:"Perfil",
+    body:"Julio, 53 anos, Mooring Master — faz manobras de amarração de navios em FPSO. Mora em Saquarema, RJ, Brasil." },
+
+  { id:"organizacao", area:"metas", title:"Organização",
+    body:"Curto prazo: melhorar a organização em casa, na igreja (professor de escola bíblica) e no trabalho — melhores manobras, inspeções de mangote e relatórios de manobra e inspeção." },
+  { id:"aposentar60", area:"metas", title:"Aposentar aos 60",
+    body:"Longo prazo: independência financeira e renda extra para se aposentar aos 60 anos." },
+  { id:"viagens", area:"metas", title:"Viagens",
+    body:"Viajar mais pelo Brasil e pelo mundo, inclusive para relaxar com a esposa Sheila." },
+  { id:"familia_biblica", area:"metas", title:"Família bíblica",
+    body:"É casado, sem filhos. Já trata bem a esposa e familiares, mas quer melhorar o relacionamento com base em conhecimentos bíblicos sobre família." },
+  { id:"profissao_digital", area:"metas", title:"Profissão digital",
+    body:"Aprender uma profissão para trabalhar com internet, IA ou outra que dê retorno financeiro." },
+
+  { id:"brl_prio", area:"trabalho", title:"BRL / PRIO",
+    body:"Mooring Master na empresa BRL, contrato de 2 em 2 anos com a PRIO. Contrato atual termina em novembro, com possibilidade de renovação." },
+  { id:"manobras_seguras", area:"trabalho", title:"Manobras seguras",
+    body:"Foco profissional: fazer manobras de navios Suezmax e VLCC mais seguras. Já manobra bem, mas quer melhorar sempre." },
+  { id:"trades_noturnos", area:"trabalho", title:"Trades noturnos",
+    body:"No tempo livre à noite, faz trades das 20h à 01h para ganhar renda extra." },
+
+  { id:"escola_biblica", area:"projetos", title:"Escola bíblica",
+    body:"Professor de escola bíblica para novos cristãos." },
+  { id:"tesouraria", area:"projetos", title:"Tesouraria",
+    body:"Trabalha como tesoureiro da igreja." },
+  { id:"teologia", area:"projetos", title:"Teologia",
+    body:"Cursando bacharel em teologia na Academia de Pregadores." },
+  { id:"terminais_prio", area:"projetos", title:"Terminais PRIO",
+    body:"Manobrando navios nos terminais da PRIO: Frade e Bravo." },
+  { id:"mangotes", area:"projetos", title:"Mangotes",
+    body:"Inspeção de linhas de mangotes flutuantes das unidades da PRIO e testes de pressão." },
+
+  { id:"reserva", area:"financas", title:"Reserva",
+    body:"Criar reserva para aposentadoria. A aposentadoria será na faixa de R$ 7 mil, então precisa aumentar a renda para quando se aposentar." },
+  { id:"airbnb", area:"financas", title:"Airbnb",
+    body:"Aluga o apartamento no Airbnb e já é Superhost. Pretende aumentar os ganhos com o aluguel." },
+  { id:"forex", area:"financas", title:"Forex",
+    body:"Faz trade de pares de moedas em Forex e está começando a ganhar consistência. Meta: US$ 1.000 a 2.000 por mês." },
+  { id:"castelos_vale", area:"financas", title:"Castelos do Vale",
+    body:"Tem 2 cotas do empreendimento Castelos do Vale em Bento Gonçalves. Plano: alugar 3 vezes ao ano (das 4 cotas anuais de 3 e 4 dias) para gerar pelo menos R$ 20 mil." },
+
+  { id:"vendas_online", area:"aprendizado", title:"Vendas online",
+    body:"Quer aprender a vender pela internet e montar Instagram e TikTok para vendas." },
+  { id:"produtos", area:"aprendizado", title:"Produtos",
+    body:"Precisa criar ou obter produtos: quer estudar quais são os melhores produtos para vender." },
+
+  { id:"pilates", area:"saude", title:"Pilates",
+    body:"Faz Pilates duas vezes por semana. Índices de saúde estão bons." },
+  { id:"peso", area:"saude", title:"Peso",
+    body:"Está 7 kg acima do peso. Pretende começar musculação ou caminhada, o que for melhor." },
+  { id:"estresse", area:"saude", title:"Estresse",
+    body:"Sente-se um pouco cansado e com estresse pelos trabalhos e atividades. Sheila também sente estresse e mente cansada — precisam relaxar e viajar." },
+  { id:"suplementos", area:"saude", title:"Suplementos",
+    body:"Não se dá bem com cápsulas de suplemento, por isso toma Nutren. Quer avaliar os minerais com exame ortomolecular." },
+  { id:"memoria", area:"saude", title:"Memória",
+    body:"A memória não anda boa: esquece algumas coisas da rotina. O Jarvis deve ajudar a lembrar compromissos e pedidos." },
+
+  { id:"sheila", area:"relacoes", title:"Sheila",
+    body:"Esposa maravilhosa e trabalhadora — ele a ama. Às vezes, por mal-entendidos na comunicação, esquece coisas que ela pediu e leva chamada de atenção. Quer melhorar a organização e o tratamento com ela." },
+  { id:"mae_sebastiana", area:"relacoes", title:"Mãe Sebastiana",
+    body:"83 anos, mora sozinha em Araruama (20 min de distância) e prefere ficar na casa dela. Tem hidrocefalia — médico do cérebro exige Pilates, que faz junto com Julio e a deixa bem. Consegue cozinhar mas não aguenta faxina: Oswaldina faz faxina de 15 em 15 dias. Tem câmera de monitoramento na sala. Tem um pouco de anemia, tratando com Combiron e vitaminas. Geriatra de rotina: Dr. Arquimedes. Consulta de reavaliação em ~10 dias (por volta de 22/07/2026)." },
+  { id:"tios_araruama", area:"relacoes", title:"Maria Amélia & Elihu",
+    body:"Tia Maria Amélia (irmã da mãe) e o esposo tio Elihu moram a um quarteirão da mãe, em Araruama. Elihu fraturou o fêmur há 6 meses, já anda devagar com monitoramento das cuidadoras; tem diabetes e vive pedindo bolos e doces. Maria Amélia anda cansada de cuidar da casa, das compras e dos pedidos dele." },
+  { id:"maria_adelia", area:"relacoes", title:"Maria Adélia",
+    body:"Tia que mora em Saquarema, próximo a Julio. Muito dedicada; perdeu o marido recentemente. Costuma ir a Tombos (MG) visitar os irmãos idosos e com saúde frágil." },
+  { id:"irmao_petropolis", area:"relacoes", title:"Irmão (Petrópolis)",
+    body:"Irmão de 35 anos com síndrome de Down, idade mental de criança. Muito amável e inteligente, não fala direito mas entende tudo. Adora coxinha e Coca-Cola e sempre pede. Mora em Nogueira, Petrópolis (4h de distância), com a mãe dele, Rita." },
+  { id:"patricia", area:"relacoes", title:"Prima Patrícia",
+    body:"Prima-irmã, filha da tia Maria Amélia. Mora no Rio de Janeiro e está namorando. Muito legal, se dão muito bem." },
+  { id:"gustavo", area:"relacoes", title:"Irmão Gustavo",
+    body:"Mora no Rio de Janeiro; quase não se veem. Tiveram uma briga quando o pai faleceu, mas já fizeram as pazes e se falam pela internet." },
+  { id:"tias_botafogo", area:"relacoes", title:"Tias de Botafogo",
+    body:"Tia Graça, tia Eleni e tia Angela moram em Botafogo, RJ. Todas muito boas com Julio." },
+  { id:"araruama_mais", area:"relacoes", title:"Wellington & Cátia",
+    body:"Em Araruama moram também o tio Wellington, a tia Cátia e a prima Catarina." }
+];
+
+const REL = [
+  ["aposentar60","reserva"],["aposentar60","forex"],["aposentar60","airbnb"],
+  ["aposentar60","castelos_vale"],["aposentar60","profissao_digital"],
+  ["aposentar60","trades_noturnos"],["aposentar60","viagens"],
+  ["organizacao","perfil"],["organizacao","sheila"],["organizacao","escola_biblica"],
+  ["organizacao","memoria"],["organizacao","mangotes"],["organizacao","brl_prio"],
+  ["familia_biblica","sheila"],["familia_biblica","teologia"],
+  ["familia_biblica","escola_biblica"],["familia_biblica","mae_sebastiana"],
+  ["profissao_digital","vendas_online"],["profissao_digital","produtos"],["profissao_digital","forex"],
+  ["viagens","estresse"],["viagens","sheila"],["viagens","castelos_vale"],
+  ["brl_prio","manobras_seguras"],["brl_prio","terminais_prio"],["brl_prio","mangotes"],["brl_prio","perfil"],
+  ["manobras_seguras","terminais_prio"],
+  ["trades_noturnos","forex"],
+  ["escola_biblica","teologia"],["escola_biblica","tesouraria"],
+  ["reserva","airbnb"],["reserva","forex"],["reserva","castelos_vale"],
+  ["vendas_online","produtos"],["vendas_online","airbnb"],
+  ["pilates","mae_sebastiana"],["pilates","peso"],
+  ["peso","estresse"],["peso","suplementos"],
+  ["estresse","sheila"],["estresse","memoria"],
+  ["memoria","sheila"],
+  ["sheila","perfil"],
+  ["mae_sebastiana","tios_araruama"],["mae_sebastiana","araruama_mais"],["mae_sebastiana","maria_adelia"],
+  ["tios_araruama","patricia"],
+  ["irmao_petropolis","perfil"],["gustavo","perfil"],["tias_botafogo","perfil"],["maria_adelia","perfil"]
+];
+
+/* ═══════════════════ ESTADO ═══════════════════ */
+let notes = [];
+let history = [];
+let busy = false;          // pensando ou falando → ignora reconhecimento
+let awake = false;         // esperando comando (wake word já dita ou clique)
+let recognition = null;
+let recRunning = false;
+let micDenied = false;
+let ptVoice = null;
+let pulses = [];
+let edgeGeom = [];
+let rafId = null;
+let editingId = null;
+
+const $ = id => document.getElementById(id);
+const norm = s => (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+/* ═══════════════════ NOTAS (localStorage) ═══════════════════ */
+function loadNotes(){
+  try{
+    const raw = localStorage.getItem("jarvis_notes");
+    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length){ notes = arr; return; } }
+  }catch(e){}
+  notes = JSON.parse(JSON.stringify(NOTES));
+  saveNotes();
+}
+function saveNotes(){
+  try{ localStorage.setItem("jarvis_notes", JSON.stringify(notes)); }catch(e){}
+}
+
+/* ═══════════════════ TELAS ═══════════════════ */
+setTimeout(()=>{
+  $("boot").classList.add("fade");
+  setTimeout(()=>{ $("boot").style.display="none"; $("gate").classList.add("show"); }, 820);
+}, 2200);
+
+$("btnActivate").addEventListener("click", ()=>{
+  $("gate").classList.add("fade");
+  setTimeout(()=>{ $("gate").style.display="none"; }, 820);
+  $("app").classList.add("on");
+  initVoices();
+  initRecognition();
+  startRec();
+  awake = true; // já começa ouvindo o primeiro comando
+  speak("Sistemas online. Estou ouvindo, " + CONFIG.address + ".");
+});
+
+/* ═══════════════════ API KEY ═══════════════════ */
+function getKey(){ return (localStorage.getItem("anthropic_key")||"").trim(); }
+function refreshKeyState(){
+  const k = getKey();
+  const el = $("keyState");
+  if(k){ el.textContent = "✓ chave salva"; el.classList.add("ok"); }
+  else { el.textContent = "sem chave"; el.classList.remove("ok"); }
+}
+$("apiKey").addEventListener("input", e=>{
+  localStorage.setItem("anthropic_key", e.target.value.trim());
+  refreshKeyState();
+});
+
+/* ═══════════════════ ORBE / STATUS ═══════════════════ */
+function setState(st, msg){
+  const orb = $("orb");
+  orb.classList.remove("listening","thinking","speaking");
+  if(st !== "idle") orb.classList.add(st);
+  if(msg !== undefined) $("status").textContent = msg;
+}
+
+/* ═══════════════════ TTS ═══════════════════ */
+function initVoices(){
+  const pick = ()=>{
+    const vs = speechSynthesis.getVoices();
+    if(!vs.length) return;
+    const pts = vs.filter(v=>/^pt(-|_)?(br)?/i.test(v.lang) || /portug/i.test(v.name));
+    const br  = pts.filter(v=>/br/i.test(v.lang));
+    const pool = br.length ? br : pts;
+    if(!pool.length){ ptVoice = null; return; }
+    const maleNames = /daniel|felipe|ricardo|antonio|thiago|male|masc|homem|joão|joao|fábio|fabio/i;
+    const femNames  = /maria|francisca|luciana|fernanda|vitoria|vitória|camila|female|fem|mulher/i;
+    let cand;
+    if(CONFIG.voiceGender === "male"){
+      cand = pool.find(v=>maleNames.test(v.name)) || pool.find(v=>!femNames.test(v.name));
+    }else{
+      cand = pool.find(v=>femNames.test(v.name));
+    }
+    ptVoice = cand || pool[0];
+  };
+  pick();
+  if(speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = pick;
+}
+
+function speak(text, done){
+  if(!("speechSynthesis" in window)){ if(done) done(); return; }
+  speechSynthesis.cancel();
+  busy = true;
+  setState("speaking", "FALANDO…");
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "pt-BR";
+  if(ptVoice) u.voice = ptVoice;
+  u.rate = 1.02;
+  u.pitch = CONFIG.voiceGender === "male" ? 0.88 : 1.05;
+  const finish = ()=>{
+    busy = false;
+    setState("idle", awake ? "ESTOU OUVINDO…" : 'DIGA "' + CONFIG.wakeWord.toUpperCase() + '"');
+    startRec();
+    if(done) done();
+  };
+  u.onend = finish;
+  u.onerror = finish;
+  speechSynthesis.speak(u);
+}
+
+$("btnStop").addEventListener("click", ()=>{
+  speechSynthesis.cancel();
+  busy = false;
+  setState("idle", "FALA INTERROMPIDA");
+  startRec();
+});
+
+/* ═══════════════════ STT (escuta contínua) ═══════════════════ */
+function initRecognition(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    $("warn").textContent = "Este navegador não suporta reconhecimento de voz. Use o Chrome. O campo de texto continua funcionando.";
+    return;
+  }
+  recognition = new SR();
+  recognition.lang = "pt-BR";
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onstart = ()=>{ recRunning = true; $("btnMic").classList.add("live"); };
+  recognition.onend = ()=>{
+    recRunning = false;
+    $("btnMic").classList.remove("live");
+    if(!busy && !micDenied) setTimeout(startRec, 300); // reinicia sozinho
+  };
+  recognition.onerror = (e)=>{
+    if(e.error === "not-allowed" || e.error === "service-not-allowed"){
+      micDenied = true;
+      $("warn").textContent = "🎤 Permissão do microfone negada. Libere o microfone nas configurações do site ou use o campo de texto abaixo.";
+      setState("idle","MICROFONE BLOQUEADO");
+    }
+  };
+  recognition.onresult = (ev)=>{
+    if(busy || speechSynthesis.speaking) return; // não se ouvir falando
+    const res = ev.results[ev.results.length-1];
+    if(!res.isFinal) return;
+    const said = res[0].transcript.trim();
+    if(!said) return;
+    handleSpeech(said);
+  };
+}
+
+function startRec(){
+  if(!recognition || micDenied || recRunning) return;
+  try{ recognition.start(); }catch(e){ /* already started — ignora */ }
+}
+
+$("btnMic").addEventListener("click", ()=>{
+  if(micDenied){ $("warn").textContent = "🎤 Microfone bloqueado pelo navegador. Libere nas configurações do site."; return; }
+  awake = true;
+  setState("listening","ESTOU OUVINDO…");
+  startRec();
+});
+$("orb").addEventListener("click", ()=>{
+  if(busy){ return; }
+  awake = true;
+  setState("listening","ESTOU OUVINDO…");
+  startRec();
+});
+
+/* wake word + comando */
+function handleSpeech(said){
+  const n = norm(said);
+  const wake = norm(CONFIG.wakeWord);
+  if(!awake){
+    let idx = n.indexOf(wake);
+    let len = wake.length;
+    if(idx === -1){ idx = n.indexOf("jarvis"); len = 6; } // tolerância a "ei" mal ouvido
+    if(idx === -1) return; // ignora conversa sem wake word
+    const rest = said.slice(idx + len).replace(/^[\s,.!?]+/,"").trim();
+    if(rest.length > 2){ processCommand(rest); }
+    else{
+      awake = true;
+      speak("Pois não, " + CONFIG.address + "?");
+    }
+    return;
+  }
+  processCommand(said);
+}
+
+/* ═══════════════════ SYSTEM PROMPT ═══════════════════ */
+function buildSystem(){
+  let sb = "";
+  const order = ["meta","metas","trabalho","projetos","financas","aprendizado","saude","relacoes"];
+  order.forEach(a=>{
+    const group = notes.filter(x=>x.area===a);
+    if(!group.length) return;
+    sb += "\n## " + (AREA[a]?AREA[a].label:a).toUpperCase() + "\n";
+    group.forEach(x=>{ sb += "- " + x.title + ": " + x.body + "\n"; });
+  });
+  return (
+"Você é " + CONFIG.name + ", assistente pessoal de voz do usuário, com personalidade de mordomo britânico: formal, elegante, cortês, impecável, com toques sutis de humor refinado. Trate o usuário SEMPRE como \"" + CONFIG.address + "\".\n\n" +
+"REGRAS DE RESPOSTA:\n" +
+"- Responda SEMPRE em português do Brasil.\n" +
+"- Respostas CURTAS e faladas: 2 a 4 frases, tom natural de conversa.\n" +
+"- NUNCA use emojis, markdown, listas, asteriscos ou títulos — apenas frases corridas, pois o texto será falado em voz alta.\n\n" +
+"SECOND BRAIN DO " + CONFIG.address.toUpperCase() + " (contexto completo da vida dele — use SEMPRE para personalizar cada resposta):\n" + sb + "\n" +
+"PROTOCOLO DE MEMÓRIA VIVA:\n" +
+"Se o usuário revelar algo NOVO e DURADOURO sobre a vida dele (fato, meta, pessoa, decisão, mudança), TERMINE a sua resposta com uma linha no formato EXATO:\n" +
+"[[SAVE:area|titulo|texto]]\n" +
+"onde area é uma destas: metas, trabalho, projetos, financas, aprendizado, saude, relacoes, meta. O titulo tem 1-2 palavras. Se já existir nota com esse título, ela será atualizada; senão, nasce uma nova. Inclua a linha SÓ quando houver algo realmente novo e duradouro — nunca para conversa casual. Hoje é " + new Date().toLocaleDateString("pt-BR") + "."
+  );
+}
+
+/* ═══════════════════ CÉREBRO (Claude) ═══════════════════ */
+async function processCommand(text){
+  if(busy) return;
+  awake = false;
+  $("youTxt").textContent = text;
+  const key = getKey();
+  if(!key){
+    speak("Perdão, " + CONFIG.address + ", ainda não tenho uma chave de API. Por gentileza, cole sua chave da Anthropic no campo do topo da tela.");
+    $("botTxt").textContent = "Cole sua API key da Anthropic no campo do topo. ↑";
+    return;
+  }
+  busy = true;
+  setState("thinking","PROCESSANDO…");
+  $("botTxt").textContent = "…";
+  history.push({ role:"user", content:text });
+  if(history.length > 20) history = history.slice(-20);
+
+  try{
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{
+        "x-api-key": key,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true",
+        "content-type":"application/json"
+      },
+      body: JSON.stringify({
+        model: CONFIG.model,
+        max_tokens: 400,
+        system: buildSystem(),
+        messages: history
+      })
+    });
+    if(!res.ok){
+      history.pop();
+      busy = false;
+      const msg = "Lamento, " + CONFIG.address + ". A API retornou o erro " + res.status + ". Verifique se a sua chave está correta e com créditos.";
+      $("botTxt").textContent = msg;
+      speak(msg);
+      return;
+    }
+    const data = await res.json();
+    let reply = (data.content && data.content[0] && data.content[0].text) ? data.content[0].text.trim() : "";
+    if(!reply){
+      busy = false;
+      const msg = "Curioso, " + CONFIG.address + " — recebi uma resposta vazia. Poderia repetir?";
+      $("botTxt").textContent = msg;
+      speak(msg);
+      return;
+    }
+    reply = applySaves(reply);           // memória viva (remove [[SAVE:...]])
+    history.push({ role:"assistant", content:reply });
+    $("botTxt").textContent = reply;
+    busy = false;
+    speak(reply);
+  }catch(err){
+    history.pop();
+    busy = false;
+    const msg = "Perdão, " + CONFIG.address + ", não consegui me conectar à rede. Verifique sua conexão com a internet.";
+    $("botTxt").textContent = msg;
+    speak(msg);
+  }
+}
+
+/* campo de texto */
+$("txtIn").addEventListener("keydown", e=>{
+  if(e.key === "Enter"){
+    const t = e.target.value.trim();
+    if(t){ e.target.value=""; processCommand(t); }
+  }
+});
+
+/* ═══════════════════ MEMÓRIA VIVA ═══════════════════ */
+function applySaves(text){
+  const re = /\[\[SAVE:([a-z_]+)\|([^|]+)\|([\s\S]+?)\]\]/g;
+  let m, changed = false, lastId = null;
+  while((m = re.exec(text)) !== null){
+    let area = m[1].trim(); const title = m[2].trim(); const body = m[3].trim();
+    if(!AREA[area]) area = "meta";
+    const ex = notes.find(x => norm(x.title) === norm(title));
+    if(ex){ ex.body = body; ex.area = area; lastId = ex.id; }
+    else{
+      const id = "n" + Date.now() + Math.floor(Math.random()*999);
+      notes.push({ id, area, title, body });
+      lastId = id;
+    }
+    changed = true;
+  }
+  if(changed){
+    saveNotes();
+    renderGraph();
+    if(lastId) flashNode(lastId);
+  }
+  return text.replace(re,"").replace(/\n{2,}/g,"\n").trim();
+}
+
+function flashNode(id){
+  const g = document.querySelector('.nodeG[data-id="' + id + '"]');
+  if(g){ g.classList.add("flash"); setTimeout(()=>g.classList.remove("flash"), 2600); }
+}
+
+/* ═══════════════════ SECOND BRAIN — GRAFO SVG ═══════════════════ */
+function renderGraph(){
+  const W = 1000, H = 540, CX = 500, CY = 245;
+  const wrap = $("graphWrap");
+  const degree = {};
+  notes.forEach(n=>degree[n.id]=0);
+  const rels = REL.filter(([a,b]) => degree[a]!==undefined && degree[b]!==undefined);
+  rels.forEach(([a,b])=>{ degree[a]++; degree[b]++; });
+
+  // posições em elipse (raio alternado pra não amontoar)
+  const pos = {};
+  const N = notes.length;
+  notes.forEach((n,i)=>{
+    const ang = (i/N) * Math.PI*2 - Math.PI/2;
+    const rx = (i%2===0) ? 335 : 425;
+    const ry = (i%2===0) ? 150 : 200;
+    pos[n.id] = { x: CX + Math.cos(ang)*rx, y: CY + Math.sin(ang)*ry };
+  });
+
+  let svg = "";
+  svg += '<defs>';
+  svg += '<linearGradient id="edgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+         '<stop offset="0%" stop-color="#8b7cff"/><stop offset="100%" stop-color="#2dd4ff"/></linearGradient>';
+  svg += '<radialGradient id="coreGrad" cx="40%" cy="35%">' +
+         '<stop offset="0%" stop-color="#c9beff"/><stop offset="45%" stop-color="#8b7cff"/>' +
+         '<stop offset="100%" stop-color="#3d2f8f"/></radialGradient>';
+  svg += '<filter id="glow" x="-80%" y="-80%" width="260%" height="260%">' +
+         '<feGaussianBlur stdDeviation="6" result="b"/>' +
+         '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+  svg += '</defs>';
+
+  // raios finos núcleo→nó (cor da área)
+  notes.forEach(n=>{
+    const p = pos[n.id], c = AREA[n.area] ? AREA[n.area].color : "#8a90a6";
+    svg += '<line class="ray" x1="'+CX+'" y1="'+CY+'" x2="'+p.x.toFixed(1)+'" y2="'+p.y.toFixed(1)+'" stroke="'+c+'"/>';
+  });
+
+  // arestas Bézier (teia)
+  edgeGeom = [];
+  rels.forEach(([a,b])=>{
+    const A = pos[a], B = pos[b];
+    const mx = (A.x+B.x)/2, my = (A.y+B.y)/2;
+    const cx = mx + (CX-mx)*0.35, cy = my + (CY-my)*0.35; // controle puxado 35% ao centro
+    edgeGeom.push({ ax:A.x, ay:A.y, cx, cy, bx:B.x, by:B.y });
+    svg += '<path class="edge" d="M '+A.x.toFixed(1)+' '+A.y.toFixed(1)+
+           ' Q '+cx.toFixed(1)+' '+cy.toFixed(1)+' '+B.x.toFixed(1)+' '+B.y.toFixed(1)+'"/>';
+  });
+
+  // núcleo central
+  svg += '<g class="coreG"><circle cx="'+CX+'" cy="'+CY+'" r="42" fill="url(#coreGrad)" filter="url(#glow)"/>' +
+         '<circle cx="'+CX+'" cy="'+CY+'" r="52" fill="none" stroke="#8b7cff" stroke-width="1" opacity=".45" class="nRing"/>' +
+         '<text x="'+CX+'" y="'+(CY+9)+'" text-anchor="middle" font-size="30">🧠</text></g>';
+
+  // nós
+  notes.forEach(n=>{
+    const p = pos[n.id];
+    const c = AREA[n.area] ? AREA[n.area].color : "#8a90a6";
+    const d = degree[n.id]||0;
+    const r = Math.min(9 + d*1.6, 21); // hubs maiores
+    svg += '<g class="nodeG" data-id="'+esc(n.id)+'">' +
+           '<circle class="nRing" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(r+6)+'" fill="none" stroke="'+c+'" stroke-width="1.2"/>' +
+           '<circle class="nCore" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+r+'" fill="'+c+'" filter="url(#glow)" opacity=".92"/>' +
+           '<text class="nLabel" x="'+p.x.toFixed(1)+'" y="'+(p.y+r+15).toFixed(1)+'">'+esc(n.title)+'</text>' +
+           '</g>';
+  });
+
+  // pulsos de sinapse (12 pontos brancos)
+  for(let i=0;i<12;i++){
+    svg += '<circle id="pulse'+i+'" r="2.6" fill="#ffffff" filter="url(#glow)" opacity="0"/>';
+  }
+
+  // legenda
+  const present = [];
+  Object.keys(AREA).forEach(a=>{ if(notes.some(n=>n.area===a)) present.push(a); });
+  let lx = 20;
+  svg += '<g>';
+  present.forEach(a=>{
+    svg += '<circle cx="'+lx+'" cy="'+(H-18)+'" r="5" fill="'+AREA[a].color+'"/>' +
+           '<text class="legT" x="'+(lx+10)+'" y="'+(H-14)+'">'+esc(AREA[a].label)+'</text>';
+    lx += 12 + AREA[a].label.length*7 + 22;
+  });
+  svg += '<text class="legOK" x="'+(W-20)+'" y="'+(H-14)+'" text-anchor="end">✓ contexto injetado em todos os comandos do '+esc(CONFIG.name)+'</text>';
+  svg += '</g>';
+
+  // CRÍTICO: injeta a string do <svg> inteiro via innerHTML da DIV contêiner
+  wrap.innerHTML = '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">' + svg + '</svg>';
+
+  // contador
+  $("countTag").textContent = notes.length + " notas · " + present.length + " áreas";
+
+  startPulses();
+}
+
+/* pulsos viajando pelas arestas */
+function startPulses(){
+  if(rafId) cancelAnimationFrame(rafId);
+  pulses = [];
+  if(!edgeGeom.length) return;
+  for(let i=0;i<12;i++){
+    pulses.push({
+      el: $("pulse"+i),
+      e: Math.floor(Math.random()*edgeGeom.length),
+      t: Math.random(),
+      v: 0.004 + Math.random()*0.007
+    });
+  }
+  const step = ()=>{
+    pulses.forEach(p=>{
+      if(!p.el) return;
+      p.t += p.v;
+      if(p.t >= 1){ p.t = 0; p.e = Math.floor(Math.random()*edgeGeom.length); }
+      const g = edgeGeom[p.e];
+      const t = p.t, mt = 1-t;
+      const x = mt*mt*g.ax + 2*mt*t*g.cx + t*t*g.bx;   // (1-t)²A + 2(1-t)tC + t²B
+      const y = mt*mt*g.ay + 2*mt*t*g.cy + t*t*g.by;
+      p.el.setAttribute("cx", x);
+      p.el.setAttribute("cy", y);
+      p.el.setAttribute("opacity", (Math.sin(Math.PI*t)*0.95).toFixed(2));
+    });
+    rafId = requestAnimationFrame(step);
+  };
+  rafId = requestAnimationFrame(step);
+}
+
+/* ═══════════════════ EDITOR DE NOTAS ═══════════════════ */
+function fillAreaSelect(){
+  const sel = $("mNoteArea");
+  sel.innerHTML = "";
+  Object.keys(AREA).forEach(a=>{
+    const o = document.createElement("option");
+    o.value = a; o.textContent = AREA[a].label;
+    sel.appendChild(o);
+  });
+}
+function openEditor(id){
+  editingId = id;
+  fillAreaSelect();
+  if(id){
+    const n = notes.find(x=>x.id===id);
+    if(!n) return;
+    $("mTitle").textContent = "EDITAR NOTA";
+    $("mNoteTitle").value = n.title;
+    $("mNoteArea").value = n.area;
+    $("mNoteBody").value = n.body;
+    $("mDel").style.display = "";
+  }else{
+    $("mTitle").textContent = "NOVA NOTA";
+    $("mNoteTitle").value = "";
+    $("mNoteArea").value = "meta";
+    $("mNoteBody").value = "";
+    $("mDel").style.display = "none";
+  }
+  $("modal").classList.add("on");
+}
+$("graphWrap").addEventListener("click", e=>{
+  const g = e.target.closest(".nodeG");
+  if(g) openEditor(g.getAttribute("data-id"));
+});
+$("btnAdd").addEventListener("click", ()=>openEditor(null));
+$("btnReload").addEventListener("click", ()=>{ loadNotes(); renderGraph(); });
+$("mCancel").addEventListener("click", ()=>$("modal").classList.remove("on"));
+$("modal").addEventListener("click", e=>{ if(e.target===$("modal")) $("modal").classList.remove("on"); });
+$("mSave").addEventListener("click", ()=>{
+  const title = $("mNoteTitle").value.trim();
+  const area = $("mNoteArea").value;
+  const body = $("mNoteBody").value.trim();
+  if(!title || !body){ return; }
+  if(editingId){
+    const n = notes.find(x=>x.id===editingId);
+    if(n){ n.title=title; n.area=area; n.body=body; }
+  }else{
+    const id = "n" + Date.now();
+    notes.push({ id, area, title, body });
+    editingId = id;
+  }
+  saveNotes();
+  renderGraph();
+  flashNode(editingId);
+  $("modal").classList.remove("on");
+});
+$("mDel").addEventListener("click", ()=>{
+  if(!editingId) return;
+  if(!confirm("Excluir esta nota?")) return;
+  notes = notes.filter(x=>x.id!==editingId);
+  saveNotes();
+  renderGraph();
+  $("modal").classList.remove("on");
+});
+
+/* ═══════════════════ INIT ═══════════════════ */
+$("apiKey").value = getKey();
+refreshKeyState();
+loadNotes();
+renderGraph();
+</script>
+</body>
+</html>
