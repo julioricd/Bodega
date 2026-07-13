@@ -178,6 +178,78 @@
     #topbar{flex-direction:column;align-items:stretch}
     #keywrap{max-width:none}
   }
+
+  /* ---------- HUB · PARTE 2 (Agenda · E-mails · Notícias · Digest) ---------- */
+  #hub{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  #hubTabs{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}
+  .htab{padding:9px 14px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);
+    cursor:pointer;font-size:12px;letter-spacing:.12em;font-family:ui-monospace,Menlo,Consolas,monospace;transition:.2s}
+  .htab:hover{border-color:var(--theme)}
+  .htab.on{border-color:var(--theme);color:var(--theme);box-shadow:0 0 14px var(--theme-glow)}
+  #hubTabs .grow{flex:1}
+  .badge{display:inline-block;min-width:18px;padding:1px 5px;margin-left:6px;border-radius:9px;background:var(--err);
+    color:#fff;font-size:10px;font-weight:700;text-align:center}
+  .badge:empty{display:none}
+  .hpanel{display:none;padding:16px;animation:panelIn .35s ease}
+  .hpanel.on{display:block}
+  @keyframes panelIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .hhead{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .hhead h3{font-size:13px;letter-spacing:.2em;color:var(--theme)}
+  .hhead .sub{font-size:11px;color:var(--dim)}
+  .offline{background:rgba(255,85,71,.08);border:1px solid rgba(255,85,71,.4);color:var(--err);
+    border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:12px}
+  .offline code{background:rgba(0,0,0,.35);padding:2px 7px;border-radius:6px;font-size:12px}
+  .hintTxt{color:var(--dim);font-size:13px}
+  .smallbtn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);cursor:pointer;font-size:13px}
+  .smallbtn:hover{border-color:var(--theme);color:var(--theme)}
+  /* agenda */
+  .dayGroup{margin-bottom:14px}
+  .dayTitle{font-size:11px;letter-spacing:.25em;color:var(--dim);margin-bottom:6px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .dayGroup.today .dayTitle{color:var(--theme)}
+  .evt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+    margin-bottom:6px;background:var(--panel2);font-size:13px;flex-wrap:wrap}
+  .evt .dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex:none;box-shadow:0 0 8px currentColor}
+  .evt .t{color:var(--dim);font-family:ui-monospace,Menlo,Consolas,monospace;white-space:nowrap}
+  .evt.next{border-color:var(--theme);box-shadow:0 0 14px var(--theme-glow)}
+  .evt .cd{margin-left:auto;color:var(--theme);font-size:11px;white-space:nowrap;font-family:ui-monospace,Menlo,Consolas,monospace}
+  /* e-mails */
+  .bucket{margin-bottom:14px}
+  .bucketTitle{font-size:12px;letter-spacing:.2em;margin-bottom:6px;font-family:ui-monospace,Menlo,Consolas,monospace;cursor:pointer;user-select:none}
+  .mail{border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:6px;background:var(--panel2);font-size:13px;cursor:pointer}
+  .mail .top{display:flex;gap:8px;align-items:center}
+  .mail .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .mail .from{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%}
+  .mail .ago{margin-left:auto;color:var(--dim);font-size:11px;white-space:nowrap}
+  .mail .sum{color:var(--dim);margin-top:3px}
+  .mail .mbody{display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;white-space:pre-wrap}
+  .mail.open .mbody{display:block}
+  .bucket.acao .mail{border-color:var(--theme-soft)}
+  /* notícias */
+  .topicBlock{margin-bottom:16px}
+  .newsItem{display:block;padding:7px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;
+    background:var(--panel2);font-size:13px;color:var(--txt);text-decoration:none;transition:.15s}
+  .newsItem:hover{border-color:var(--theme)}
+  .newsItem .src{color:var(--dim);font-size:11px;margin-top:2px}
+  /* digest */
+  #digestBox{background:var(--panel2);border:1px solid var(--theme-soft);border-radius:12px;padding:16px;
+    font-size:14px;line-height:1.7;white-space:pre-wrap;box-shadow:inset 0 0 30px rgba(245,197,66,.04)}
+  .mbtn2{padding:9px 14px;border-radius:8px;border:1px solid var(--theme);background:rgba(245,197,66,.08);color:var(--theme);cursor:pointer;font-size:12px}
+  /* config */
+  .cfgSec{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;background:var(--panel2)}
+  .cfgSec h4{font-size:12px;letter-spacing:.2em;color:var(--theme);margin-bottom:8px}
+  .cfgSec .help{font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px}
+  .cfgRow{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;align-items:center}
+  .cfgRow input[type=text],.cfgRow input[type=password]{flex:1;min-width:120px;background:var(--panel);
+    border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:12px;outline:none}
+  .cfgRow input:focus{border-color:var(--theme)}
+  .cfgRow input[type=color]{width:34px;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:2px;cursor:pointer}
+  .xbtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--err);cursor:pointer;flex:none}
+  .addbtn{padding:8px 14px;border-radius:8px;border:1px dashed var(--line);background:none;color:var(--dim);cursor:pointer;font-size:12px}
+  .addbtn:hover{border-color:var(--theme);color:var(--theme)}
+  .modelOpt{display:flex;gap:8px;flex-wrap:wrap}
+  .modelOpt button{flex:1;min-width:150px;padding:10px;border-radius:9px;border:1px solid var(--line);
+    background:var(--panel);color:var(--txt);cursor:pointer;font-size:12px;text-align:left;line-height:1.5}
+  .modelOpt button.on{border-color:var(--theme);color:var(--theme);box-shadow:0 0 12px var(--theme-glow)}
 </style>
 </head>
 <body>
@@ -240,6 +312,56 @@
       <button id="btnReload" class="sbtn" title="Recarregar grafo">⟳</button>
     </div>
     <div id="graphWrap"></div>
+  </div>
+
+  <!-- HUB · PARTE 2 -->
+  <div id="hub">
+    <div id="hubTabs">
+      <button class="htab on" data-panel="agenda">📅 AGENDA</button>
+      <button class="htab" data-panel="emails">📧 E-MAILS<span class="badge" id="badgeAcao"></span></button>
+      <button class="htab" data-panel="news">📰 NOTÍCIAS</button>
+      <button class="htab" data-panel="digest">☀️ DIGEST</button>
+      <span class="grow"></span>
+      <button class="htab" data-panel="config" title="Configurações">⚙</button>
+    </div>
+    <div id="hubBody">
+      <div class="hpanel on" id="panel-agenda">
+        <div class="hhead"><h3>📅 CENTRAL DE AGENDA</h3><span class="sub">hoje + 7 dias · Brasília</span><span class="grow" style="flex:1"></span><button class="smallbtn" id="btnAgendaRefresh" title="Atualizar">↻</button></div>
+        <div id="agendaBody"></div>
+      </div>
+      <div class="hpanel" id="panel-emails">
+        <div class="hhead"><h3>📧 CENTRAL DE E-MAILS</h3><span class="sub" id="emailSub"></span><span class="grow" style="flex:1"></span><button class="smallbtn" id="btnEmailRefresh" title="Atualizar">↻</button></div>
+        <div id="emailBody"></div>
+      </div>
+      <div class="hpanel" id="panel-news">
+        <div class="hhead"><h3>📰 RADAR DE NOTÍCIAS</h3><span class="sub" id="newsSub"></span><span class="grow" style="flex:1"></span><button class="smallbtn" id="btnNewsRefresh" title="Atualizar">↻</button></div>
+        <div id="newsBody"></div>
+      </div>
+      <div class="hpanel" id="panel-digest">
+        <div class="hhead"><h3>☀️ MORNING DIGEST</h3><span class="grow" style="flex:1"></span><button class="mbtn2" id="btnDigest">▶ GERAR DIGEST</button></div>
+        <div id="digestBox">Diga "Ei Jarvis, bom dia" ou clique em GERAR DIGEST.</div>
+      </div>
+      <div class="hpanel" id="panel-config">
+        <div class="cfgSec" id="cfgAntena"></div>
+        <div class="cfgSec">
+          <h4>📅 AGENDAS · links iCal</h4>
+          <div class="help">Google Agenda no computador → ⚙ Configurações → clique na agenda na lista à esquerda → "Integrar agenda" → copie o <b>"Endereço secreto em formato iCal"</b> e cole abaixo.<br>🔒 Este link dá acesso de leitura à sua agenda. Ele fica salvo só no seu navegador e nunca é enviado para a IA.</div>
+          <div id="cfgCalRows"></div>
+          <button class="addbtn" id="btnAddCal">+ adicionar agenda</button>
+        </div>
+        <div class="cfgSec">
+          <h4>📧 CONTAS DE E-MAIL · senha de app</h4>
+          <div class="help"><b>1)</b> Ative a verificação em 2 etapas (myaccount.google.com/security). <b>2)</b> Só depois vá em <b>myaccount.google.com/apppasswords</b>, crie o app "Jarvis" e copie a senha de 16 letras. <b>3)</b> Cole aqui — <b>não</b> é a sua senha normal do Gmail.<br>🔒 Sua senha de app fica salva só no seu navegador e viaja apenas até a antena local e o seu provedor. Para a triagem, remetente, assunto e um trecho do e-mail são enviados à API da Anthropic. O Jarvis só LÊ: nunca envia, responde, apaga ou marca nada.</div>
+          <div id="cfgMailRows"></div>
+          <button class="addbtn" id="btnAddMail">+ adicionar conta</button>
+        </div>
+        <div class="cfgSec">
+          <h4>🧠 NÍVEL DO CÉREBRO</h4>
+          <div class="help">Usado em todas as chamadas à IA. A chave da API é a mesma da Parte 1 (campo no topo da tela).</div>
+          <div class="modelOpt" id="cfgModel"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -903,6 +1025,715 @@ $("apiKey").value = getKey();
 refreshKeyState();
 loadNotes();
 renderGraph();
+</script>
+
+<script>
+"use strict";
+/* ═══════════════ PARTE 2 · UPGRADE: AGENDA · E-MAILS · NOTÍCIAS · DIGEST ═══════════════
+   Nada da Parte 1 foi reescrito — as funções originais são ENVELOPADAS no fim deste bloco. */
+
+const ANTENA = "http://127.0.0.1:4242";
+const CITY = "Saquarema";
+const NEWS_TOPICS = [
+  { label:"Forex / Dólar", q:"forex dolar" },
+  { label:"Turismo",       q:"turismo" },
+  { label:"Saquarema",     q:"Saquarema" },
+  { label:"Economia",      q:"economia" },
+  { label:"Política",      q:"politica brasil" }
+];
+const NEWS_N = 5;
+const NEWS_TTL  = 30*60*1000;
+const EMAIL_TTL = 15*60*1000;
+const AGENDA_TTL = 10*60*1000;
+const MODELS = [
+  { id:"claude-haiku-4-5", label:"💚 ECONÔMICO",   desc:"claude-haiku-4-5 · rápido e barato" },
+  { id:"claude-sonnet-5",  label:"⚖️ EQUILIBRADO", desc:"claude-sonnet-5 · o meio-termo ideal" },
+  { id:"claude-opus-4-8",  label:"🧠 MÁXIMO",      desc:"claude-opus-4-8 · o mais inteligente" }
+];
+
+/* ---------- estado + persistência ---------- */
+function loadLS(k, def){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
+function saveLS(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+let calendars = loadLS("jarvis_calendars", [
+  { id:"c1", name:"Pessoal",  color:"#f5c542", url:"" },
+  { id:"c2", name:"Trabalho", color:"#ff5547", url:"" },
+  { id:"c3", name:"Igreja",   color:"#8b7cff", url:"" },
+  { id:"c4", name:"Sheila",   color:"#ec4899", url:"" }
+]);
+let emailAccounts = loadLS("jarvis_emails", [
+  { id:"e1", name:"Gmail", color:"#f5c542", host:"imap.gmail.com", email:"", pass:"", qtd:20 }
+]);
+let triage = loadLS("jarvis_email_triage", {});
+let newsData = loadLS("jarvis_news_cache", null);
+let events = [], calErrors = {};
+let mails = [], mailErrors = {};
+let antenaOK = false, triageMode = "";
+let lastAgendaFetch = 0, lastEmailFetch = 0;
+
+/* modelo escolhido na entrevista: ECONÔMICO — reutiliza o MESMO CONFIG.model da Parte 1 */
+CONFIG.model = localStorage.getItem("jarvis_model") || "claude-haiku-4-5";
+localStorage.setItem("jarvis_model", CONFIG.model);
+
+/* ---------- util ---------- */
+function pad2(n){ return String(n).padStart(2, "0"); }
+function hhmm(d){ return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+function relTime(d){
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  if(isNaN(s)) return "";
+  if(s < 60) return "agora";
+  if(s < 3600) return "há " + Math.floor(s/60) + " min";
+  if(s < 86400) return "há " + Math.floor(s/3600) + " h";
+  return "há " + Math.floor(s/86400) + " d";
+}
+function dayKey(d){ return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate()); }
+function dayLabel(d){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  const diff = Math.round((dd - today) / 86400000);
+  if(diff === 0) return "HOJE";
+  if(diff === 1) return "AMANHÃ";
+  return dd.toLocaleDateString("pt-BR", { weekday:"long" }).toUpperCase() + " · " + pad2(dd.getDate()) + "/" + pad2(dd.getMonth()+1);
+}
+function falaHora(d){ const h = d.getHours(), m = d.getMinutes(); return m ? h + " e " + m : h + " horas"; }
+function countdownTxt(d){
+  const min = Math.floor((d - Date.now()) / 60000);
+  if(min < 1) return "agora";
+  const h = Math.floor(min/60), m = min % 60;
+  return "em " + (h ? h + "h " : "") + m + "min";
+}
+
+/* ---------- abas ---------- */
+function showPanel(name){
+  document.querySelectorAll(".htab").forEach(b => b.classList.toggle("on", b.dataset.panel === name));
+  document.querySelectorAll(".hpanel").forEach(p => p.classList.toggle("on", p.id === "panel-" + name));
+  if(name === "agenda" && Date.now() - lastAgendaFetch > AGENDA_TTL) refreshAgenda();
+  if(name === "emails" && Date.now() - lastEmailFetch > EMAIL_TTL) refreshEmails(false);
+  if(name === "news") refreshNews(false);
+}
+document.querySelectorAll(".htab").forEach(b => b.addEventListener("click", () => showPanel(b.dataset.panel)));
+
+/* ---------- antena ---------- */
+async function pingAntena(){
+  try{ const r = await fetch(ANTENA + "/ping", { cache:"no-store" }); antenaOK = r.ok; }
+  catch(e){ antenaOK = false; }
+  renderCfgAntena();
+  return antenaOK;
+}
+function offlineBox(){
+  return '<div class="offline">📡 <b>ANTENA OFFLINE</b> — abra um terminal nesta pasta e rode: <code>node server.js</code> (deixe o terminal aberto). O resto do Jarvis segue funcionando normalmente.</div>';
+}
+async function proxyGet(url){
+  const r = await fetch(ANTENA + "/proxy?url=" + encodeURIComponent(url));
+  if(!r.ok) throw new Error("proxy " + r.status);
+  return r.text();
+}
+
+/* ═══════════ MÓDULO AGENDA (parser ICS em JS puro) ═══════════ */
+function icsUnesc(s){ return s.replace(/\\n/gi,"\n").replace(/\\,/g,",").replace(/\\;/g,";").replace(/\\\\/g,"\\"); }
+function zonedToDate(y, mo, d, h, mi, s, tz){
+  try{
+    const guess = Date.UTC(y, mo-1, d, h, mi, s);
+    const p = {};
+    new Intl.DateTimeFormat("en-US", { timeZone:tz, year:"numeric", month:"2-digit", day:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false })
+      .formatToParts(new Date(guess)).forEach(x => { p[x.type] = x.value; });
+    const rendered = Date.UTC(+p.year, +p.month-1, +p.day, (+p.hour)%24, +p.minute, +p.second);
+    return new Date(guess - (rendered - guess));
+  }catch(e){ return new Date(y, mo-1, d, h, mi, s); }
+}
+function icsDate(val, pmap){
+  pmap = pmap || {};
+  let m = val.match(/^(\d{4})(\d\d)(\d\d)$/);
+  if(m || pmap.VALUE === "DATE"){
+    m = m || val.match(/^(\d{4})(\d\d)(\d\d)/);
+    if(!m) return null;
+    return { d:new Date(+m[1], +m[2]-1, +m[3]), allDay:true };
+  }
+  m = val.match(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)?(Z?)$/);
+  if(!m) return null;
+  const sec = +(m[6] || 0);
+  if(m[7] === "Z") return { d:new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], sec)), allDay:false };
+  if(pmap.TZID) return { d:zonedToDate(+m[1], +m[2], +m[3], +m[4], +m[5], sec, pmap.TZID), allDay:false };
+  return { d:new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], sec), allDay:false };
+}
+function parseICS(txt){
+  const lines = txt.replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, "").split(/\r?\n/); // unfolding
+  const evs = []; let cur = null;
+  for(const ln of lines){
+    if(ln === "BEGIN:VEVENT"){ cur = { ex:[] }; continue; }
+    if(ln === "END:VEVENT"){ if(cur && cur.start) evs.push(cur); cur = null; continue; }
+    if(!cur) continue;
+    const ci = ln.indexOf(":"); if(ci < 1) continue;
+    const parts = ln.slice(0, ci).split(";");
+    const prop = parts[0].toUpperCase();
+    const pmap = {};
+    parts.slice(1).forEach(p => { const eq = p.indexOf("="); if(eq > 0) pmap[p.slice(0, eq).toUpperCase()] = p.slice(eq+1); });
+    const val = ln.slice(ci + 1).trim();
+    if(prop === "SUMMARY") cur.title = icsUnesc(val);
+    else if(prop === "LOCATION") cur.loc = icsUnesc(val);
+    else if(prop === "DTSTART"){ const r = icsDate(val, pmap); if(r){ cur.start = r.d; cur.allDay = r.allDay; } }
+    else if(prop === "DTEND"){ const r = icsDate(val, pmap); if(r) cur.end = r.d; }
+    else if(prop === "RRULE") cur.rrule = val.toUpperCase();
+    else if(prop === "EXDATE") val.split(",").forEach(v => { const r = icsDate(v.trim(), pmap); if(r) cur.ex.push(r.d.getTime()); });
+  }
+  return evs;
+}
+const DOW = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
+function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function startOfWeek(d){ const x = startOfDay(d); x.setDate(x.getDate() - x.getDay()); return x; }
+function cloneWithTime(day, src){ return new Date(day.getFullYear(), day.getMonth(), day.getDate(), src.getHours(), src.getMinutes(), src.getSeconds()); }
+function occList(ev, R, interval, byday, winStart, winEnd, until, count){
+  const s = ev.start, out = [], lim = Math.min(count !== null ? count : 500, 500);
+  const past = (d) => (until && d > until) || d > winEnd || out.length >= lim;
+  if(R.FREQ === "DAILY"){
+    const step = interval * 86400000;
+    let k0 = 0;
+    if(count === null && s < winStart) k0 = Math.max(0, Math.floor((winStart - s) / step) - 1);
+    for(let k = k0; k < k0 + 1000; k++){
+      const d = new Date(s.getTime() + k * step);
+      if(past(d)) break; out.push(d);
+    }
+  } else if(R.FREQ === "WEEKLY" && byday && byday.length){
+    const week0 = startOfWeek(s).getTime(), weekMs = 7 * 86400000;
+    let k0 = 0;
+    if(count === null && s < winStart) k0 = Math.max(0, Math.floor((startOfDay(winStart) - startOfDay(s)) / 86400000) - 7);
+    for(let k = k0; k < k0 + 1300; k++){
+      const d = cloneWithTime(new Date(startOfDay(s).getTime() + k * 86400000), s);
+      if((until && d > until) || d > winEnd || out.length >= lim) break;
+      if(d < s) continue;
+      const wk = Math.round((startOfWeek(d).getTime() - week0) / weekMs);
+      if(byday.includes(d.getDay()) && wk % interval === 0) out.push(d);
+    }
+  } else if(R.FREQ === "WEEKLY"){
+    const step = interval * 7 * 86400000;
+    let k0 = 0;
+    if(count === null && s < winStart) k0 = Math.max(0, Math.floor((winStart - s) / step) - 1);
+    for(let k = k0; k < k0 + 500; k++){
+      const d = new Date(s.getTime() + k * step);
+      if(past(d)) break; out.push(d);
+    }
+  } else if(R.FREQ === "MONTHLY"){
+    let k0 = 0;
+    if(count === null && s < winStart){
+      const months = (winStart.getFullYear() - s.getFullYear()) * 12 + (winStart.getMonth() - s.getMonth());
+      k0 = Math.max(0, Math.floor(months / interval) - 1);
+    }
+    for(let k = k0; k < k0 + 240; k++){
+      const d = new Date(s); d.setMonth(s.getMonth() + k * interval);
+      if(past(d)) break;
+      if(d.getDate() === s.getDate()) out.push(d);
+    }
+  } else if(R.FREQ === "YEARLY"){
+    let k0 = 0;
+    if(count === null && s < winStart) k0 = Math.max(0, Math.floor((winStart.getFullYear() - s.getFullYear()) / interval) - 1);
+    for(let k = k0; k < k0 + 80; k++){
+      const d = new Date(s); d.setFullYear(s.getFullYear() + k * interval);
+      if(past(d)) break; out.push(d);
+    }
+  } else { out.push(s); }
+  return out;
+}
+function expandEvents(raw, winStart, winEnd){
+  const out = [];
+  raw.forEach(ev => {
+    try{
+      const dur = ev.end ? ev.end.getTime() - ev.start.getTime() : (ev.allDay ? 86400000 : 3600000);
+      const push = (start) => {
+        const end = new Date(start.getTime() + dur);
+        if(end >= winStart && start <= winEnd)
+          out.push({ title: ev.title || "(sem título)", loc: ev.loc || "", start, end, allDay: !!ev.allDay });
+      };
+      if(!ev.rrule){ push(ev.start); return; }
+      const R = {};
+      ev.rrule.split(";").forEach(p => { const eq = p.indexOf("="); if(eq > 0) R[p.slice(0, eq)] = p.slice(eq+1); });
+      const interval = Math.max(1, parseInt(R.INTERVAL || "1", 10) || 1);
+      const count = R.COUNT ? parseInt(R.COUNT, 10) : null;
+      let until = null;
+      if(R.UNTIL){ const u = icsDate(R.UNTIL, R.UNTIL.length === 8 ? { VALUE:"DATE" } : {}); if(u) until = u.d; }
+      const byday = R.BYDAY ? R.BYDAY.split(",").map(x => DOW[x.slice(-2)]).filter(x => x !== undefined) : null;
+      const isEx = (t) => ev.ex.some(x => Math.abs(x - t) < 1000 ||
+        (ev.allDay && new Date(x).toDateString() === new Date(t).toDateString()));
+      occList(ev, R, interval, byday, winStart, winEnd, until, count).forEach(d => { if(!isEx(d.getTime())) push(d); });
+    }catch(e){ /* evento exótico não derruba o painel */ }
+  });
+  out.sort((a, b) => a.start - b.start);
+  return out;
+}
+async function refreshAgenda(){
+  lastAgendaFetch = Date.now();
+  const body = $("agendaBody");
+  const configured = calendars.filter(c => c.url && c.url.trim());
+  if(!configured.length){
+    body.innerHTML = '<div class="hintTxt">Nenhum link configurado ainda. Clique em ⚙ e cole o "endereço secreto em formato iCal" de cada agenda.</div>';
+    return;
+  }
+  if(!(await pingAntena())){ body.innerHTML = offlineBox(); return; }
+  body.innerHTML = '<div class="hintTxt">Sincronizando agendas…</div>';
+  const now = new Date();
+  const winStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const winEnd = new Date(winStart.getTime() + 8 * 86400000 - 1);
+  const all = []; calErrors = {};
+  await Promise.all(configured.map(async c => {
+    try{
+      const txt = await proxyGet(c.url.trim());
+      expandEvents(parseICS(txt), winStart, winEnd).forEach(e => { e.cal = c; all.push(e); });
+    }catch(err){ calErrors[c.name] = true; }
+  }));
+  all.sort((a, b) => a.start - b.start);
+  events = all;
+  renderAgenda();
+}
+function renderAgenda(){
+  const body = $("agendaBody");
+  const now = Date.now();
+  const next = events.find(e => !e.allDay && e.start.getTime() > now);
+  const groups = {};
+  events.forEach(e => { const k = dayKey(e.start); (groups[k] = groups[k] || []).push(e); });
+  let h = "";
+  Object.keys(groups).sort().forEach(k => {
+    const list = groups[k];
+    const isToday = k === dayKey(new Date());
+    h += '<div class="dayGroup' + (isToday ? ' today' : '') + '"><div class="dayTitle">' + dayLabel(list[0].start) + '</div>';
+    list.forEach(e => {
+      const isNext = next && e === next;
+      h += '<div class="evt' + (isNext ? ' next' : '') + '">'
+        + '<span class="dot" style="color:' + e.cal.color + ';background:' + e.cal.color + '"></span>'
+        + '<span class="t">' + (e.allDay ? "DIA TODO" : hhmm(e.start)) + '</span>'
+        + '<span>' + esc(e.title) + (e.loc ? ' <span style="color:var(--dim)">· ' + esc(e.loc) + '</span>' : '') + '</span>'
+        + (isNext ? '<span class="cd">' + countdownTxt(e.start) + '</span>' : '')
+        + '</div>';
+    });
+    h += '</div>';
+  });
+  Object.keys(calErrors).forEach(n => {
+    h += '<div class="offline">⚠️ A agenda "' + esc(n) + '" não pôde ser lida — confira o link no ⚙.</div>';
+  });
+  body.innerHTML = h || '<div class="hintTxt">Nenhum evento nos próximos 7 dias. 🎉</div>';
+}
+function todayEvents(){ const k = dayKey(new Date()); return events.filter(e => dayKey(e.start) === k); }
+function agendaTodayText(){
+  const t = todayEvents();
+  if(!calendars.some(c => c.url)) return "Ainda não há agendas configuradas, " + CONFIG.address + ". Toque na engrenagem e cole os links iCal.";
+  if(!t.length) return "Sua agenda de hoje está livre, " + CONFIG.address + ".";
+  return "Hoje você tem " + t.length + (t.length > 1 ? " compromissos: " : " compromisso: ") +
+    t.map(e => (e.allDay ? "o dia todo" : "às " + falaHora(e.start)) + ", " + e.title).join("; ") + ".";
+}
+function nextEventText(){
+  const e = events.find(x => !x.allDay && x.start.getTime() > Date.now());
+  if(!e) return "Não há próximos compromissos com hora marcada na sua janela de sete dias, " + CONFIG.address + ".";
+  const sameDay = dayKey(e.start) === dayKey(new Date());
+  return "Seu próximo compromisso é " + e.title +
+    (sameDay ? ", hoje às " + falaHora(e.start) + ", " + countdownTxt(e.start)
+             : ", " + dayLabel(e.start).toLowerCase().replace(" · ", ", dia ") + ", às " + falaHora(e.start)) + ".";
+}
+function weekText(){
+  if(!events.length) return "Sua semana está livre, " + CONFIG.address + ".";
+  const groups = {};
+  events.forEach(e => { const k = dayKey(e.start); (groups[k] = groups[k] || []).push(e); });
+  const parts = Object.keys(groups).sort().map(k => {
+    const l = groups[k];
+    return dayLabel(l[0].start).toLowerCase().split(" · ")[0] + ", " + l.length + (l.length > 1 ? " eventos" : " evento");
+  });
+  return "Resumo da semana: " + parts.join("; ") + ".";
+}
+
+/* ═══════════ MÓDULO E-MAILS ═══════════ */
+async function refreshEmails(force){
+  lastEmailFetch = Date.now();
+  const body = $("emailBody");
+  const configured = emailAccounts.filter(a => a.email && a.pass);
+  if(!configured.length){
+    body.innerHTML = '<div class="hintTxt">Configure sua conta no ⚙ (e-mail + senha de app) e clique em ↻.</div>';
+    updateBadge(); return;
+  }
+  if(!(await pingAntena())){ body.innerHTML = offlineBox(); return; }
+  body.innerHTML = '<div class="hintTxt">Buscando e-mails (sem marcar nada como lido)…</div>';
+  const all = []; mailErrors = {};
+  await Promise.all(configured.map(async a => {
+    try{
+      const r = await fetch(ANTENA + "/emails", {
+        method:"POST", headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ host: a.host || "imap.gmail.com", usuario: a.email, senhaApp: a.pass, quantidade: a.qtd || 20 })
+      });
+      const data = await r.json();
+      if(!data.ok) throw new Error(data.error || "erro");
+      data.emails.forEach(m => { m.acc = a; m.dateObj = m.data ? new Date(m.data) : new Date(); all.push(m); });
+    }catch(err){ mailErrors[a.name] = String(err.message || err); }
+  }));
+  all.sort((x, y) => y.dateObj - x.dateObj);
+  mails = all;
+  await triageNew();
+  renderEmails();
+}
+async function triageNew(){
+  const fresh = mails.filter(m => m.id && !triage[m.id]);
+  if(!fresh.length) return;
+  const key = getKey();
+  if(key){
+    try{
+      const lista = fresh.map((m, i) => ({ n:i, de:m.remetente, assunto:m.assunto, trecho:(m.trecho || "").slice(0, 200) }));
+      const sys = 'Você tria e-mails. Responda APENAS com um array JSON válido, sem markdown e sem texto fora do JSON, no formato [{"n":0,"balde":"acao","resumo":"uma frase"}]. Baldes: "acao" = pede resposta, tarefa, decisão ou tem prazo (alguém esperando o usuário); "info" = vale a pena saber mas não exige nada (confirmação, recibo, atualização); "ruido" = promoção, newsletter, notificação automática. O resumo é UMA frase curta em português do Brasil.';
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true", "content-type":"application/json" },
+        body: JSON.stringify({ model: CONFIG.model, max_tokens: 1500, thinking:{ type:"disabled" }, system: sys,
+          messages:[{ role:"user", content: JSON.stringify(lista) }] })
+      });
+      if(res.ok){
+        const data = await res.json();
+        let txt = "";
+        if(Array.isArray(data.content)) data.content.forEach(b => { if(b.type === "text" && b.text) txt += b.text; });
+        txt = txt.trim().replace(/^```[a-z]*\s*/i, "").replace(/```\s*$/, "").trim();
+        JSON.parse(txt).forEach(r => {
+          const m = fresh[r.n];
+          if(m && m.id) triage[m.id] = {
+            balde: ["acao","info","ruido"].includes(r.balde) ? r.balde : "info",
+            resumo: String(r.resumo || "").slice(0, 160), t: Date.now()
+          };
+        });
+        triageMode = "ia";
+      }
+    }catch(e){ /* cai no heurístico abaixo */ }
+  }
+  fresh.forEach(m => { if(m.id && !triage[m.id]){ triage[m.id] = heurTriage(m); if(triageMode !== "ia") triageMode = "local"; } });
+  saveLS("jarvis_email_triage", triage);
+}
+function heurTriage(m){
+  const s = norm((m.remetente || "") + " " + (m.assunto || "") + " " + (m.trecho || ""));
+  let balde = "info";
+  if(/noreply|no-reply|nao responda|newsletter|unsubscribe|descadastr|promoc|oferta|desconto|cupom|marketing/.test(s)) balde = "ruido";
+  else if(/\?|prazo|urgente|fatura|boleto|vencimento|reuniao|confirme|responda|por favor|pendente|aprovar|assinar|pagamento|convite/.test(s)) balde = "acao";
+  return { balde, resumo: (m.assunto || "(sem assunto)").slice(0, 120), t: Date.now(), local:true };
+}
+let ruidoOpen = false;
+function mailItem(m, idx){
+  const t = triage[m.id] || {};
+  return '<div class="mail" data-i="' + idx + '">'
+    + '<div class="top"><span class="dot" style="background:' + (m.acc ? m.acc.color : "#888") + '"></span>'
+    + '<span class="from">' + esc(m.remetente || "?") + '</span>'
+    + '<span class="ago">' + relTime(m.dateObj) + '</span></div>'
+    + '<div class="sum">' + esc(t.resumo || m.assunto || "") + '</div>'
+    + '<div class="mbody">' + esc(m.assunto || "") + "\n\n" + esc(m.trecho || "(sem prévia)") + '</div></div>';
+}
+function renderEmails(){
+  const body = $("emailBody");
+  let h = "";
+  Object.keys(mailErrors).forEach(n => {
+    h += '<div class="offline">⚠️ Conta "' + esc(n) + '": ' + (mailErrors[n] === "auth"
+      ? 'senha de app inválida ou verificação em 2 etapas desativada — refaça em myaccount.google.com/apppasswords.'
+      : 'não foi possível conectar (' + esc(mailErrors[n]) + ').') + '</div>';
+  });
+  const idxOf = new Map(mails.map((m, i) => [m, i]));
+  const B = { acao:[], info:[], ruido:[] };
+  mails.forEach(m => { const t = triage[m.id]; B[(t && t.balde) || "info"].push(m); });
+  if(mails.length){
+    h += '<div class="bucket acao"><div class="bucketTitle" style="color:var(--theme)">⚡ AÇÃO (' + B.acao.length + ')</div>'
+      + (B.acao.map(m => mailItem(m, idxOf.get(m))).join("") || '<div class="hintTxt" style="font-size:12px">nada pedindo ação 🎉</div>') + '</div>';
+    h += '<div class="bucket"><div class="bucketTitle" style="color:var(--dim)">📋 INFO (' + B.info.length + ')</div>'
+      + B.info.map(m => mailItem(m, idxOf.get(m))).join("") + '</div>';
+    h += '<div class="bucket"><div class="bucketTitle" data-tg="ruido" style="color:var(--dim)">🔇 RUÍDO (' + B.ruido.length + ') ' + (ruidoOpen ? "▾" : "▸") + '</div>'
+      + (ruidoOpen ? B.ruido.map(m => mailItem(m, idxOf.get(m))).join("") : '') + '</div>';
+  } else if(!Object.keys(mailErrors).length){
+    h = '<div class="hintTxt">Nenhum e-mail carregado. Clique em ↻.</div>';
+  }
+  body.innerHTML = h;
+  $("emailSub").textContent = mails.length ? mails.length + " e-mails · triagem " + (triageMode === "ia" ? "IA ✦" : "local") : "";
+  updateBadge();
+}
+function updateBadge(){
+  const n = mails.filter(m => triage[m.id] && triage[m.id].balde === "acao").length;
+  $("badgeAcao").textContent = n ? String(n) : "";
+}
+$("emailBody").addEventListener("click", e => {
+  const tg = e.target.closest("[data-tg]");
+  if(tg){ ruidoOpen = !ruidoOpen; renderEmails(); return; }
+  const m = e.target.closest(".mail");
+  if(m) m.classList.toggle("open");
+});
+function emailsText(){
+  if(!emailAccounts.some(a => a.email && a.pass)) return "Nenhuma conta de e-mail configurada ainda, " + CONFIG.address + ". Toque na engrenagem para configurar.";
+  if(!mails.length) return "Não tenho e-mails carregados no momento, " + CONFIG.address + ". Verifique se a antena está ligada.";
+  const a = mails.filter(m => triage[m.id] && triage[m.id].balde === "acao");
+  const i = mails.filter(m => triage[m.id] && triage[m.id].balde === "info").length;
+  const r = mails.filter(m => triage[m.id] && triage[m.id].balde === "ruido").length;
+  let t = "Você tem " + a.length + (a.length === 1 ? " e-mail pedindo ação, " : " e-mails pedindo ação, ") + i + " informativos e " + r + " de ruído. ";
+  if(a.length) t += "Os de ação: " + a.slice(0, 5).map(m => triage[m.id].resumo).join(". ") + ".";
+  return t;
+}
+function emailImportantText(){
+  if(!mails.length) return emailsText();
+  const a = mails.filter(m => triage[m.id] && triage[m.id].balde === "acao");
+  if(!a.length) return "Excelente notícia, " + CONFIG.address + ": nenhum e-mail pede a sua ação no momento.";
+  return a.length + (a.length > 1 ? " e-mails pedem" : " e-mail pede") + " sua ação: " + a.slice(0, 5).map(m => triage[m.id].resumo).join(". ") + ".";
+}
+
+/* ═══════════ MÓDULO NOTÍCIAS (RSS Google News) ═══════════ */
+function cleanTitle(t, src){
+  if(src && t.endsWith(" - " + src)) return t.slice(0, -(src.length + 3));
+  const i = t.lastIndexOf(" - ");
+  return i > 10 ? t.slice(0, i) : t;
+}
+async function refreshNews(force){
+  if(!force && newsData && Date.now() - newsData.t < NEWS_TTL){ renderNews(); return; }
+  if(!(await pingAntena())){
+    if(newsData) renderNews(); else $("newsBody").innerHTML = offlineBox();
+    return;
+  }
+  $("newsSub").textContent = "atualizando…";
+  const topics = [];
+  await Promise.all(NEWS_TOPICS.map(async tp => {
+    try{
+      const url = "https://news.google.com/rss/search?q=" + encodeURIComponent(tp.q) + "&hl=pt-BR&gl=BR&ceid=BR:pt-419";
+      const xml = await proxyGet(url);
+      const doc = new DOMParser().parseFromString(xml, "text/xml");
+      const items = Array.prototype.slice.call(doc.querySelectorAll("item"), 0, NEWS_N).map(it => {
+        const g = (tag) => { const el = it.querySelector(tag); return el ? el.textContent : ""; };
+        const src = g("source");
+        return { title: cleanTitle(g("title"), src), src, link: g("link") || "#", date: g("pubDate") };
+      });
+      topics.push({ label: tp.label, items });
+    }catch(e){ topics.push({ label: tp.label, items: [] }); }
+  }));
+  topics.sort((a, b) => NEWS_TOPICS.findIndex(t => t.label === a.label) - NEWS_TOPICS.findIndex(t => t.label === b.label));
+  newsData = { t: Date.now(), topics };
+  saveLS("jarvis_news_cache", newsData);
+  renderNews();
+}
+function renderNews(){
+  const body = $("newsBody");
+  if(!newsData || !newsData.topics || !newsData.topics.length){
+    body.innerHTML = '<div class="hintTxt">Clique em ↻ para buscar as manchetes (com a antena ligada).</div>';
+    return;
+  }
+  let h = "";
+  newsData.topics.forEach(t => {
+    h += '<div class="topicBlock"><div class="dayTitle" style="color:var(--theme)">📌 ' + esc(t.label).toUpperCase() + '</div>';
+    if(!t.items.length) h += '<div class="hintTxt" style="font-size:12px">sem manchetes agora</div>';
+    t.items.forEach(i => {
+      h += '<a class="newsItem" href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.title)
+        + '<div class="src">' + esc(i.src || "") + (i.date ? " · " + relTime(new Date(i.date)) : "") + '</div></a>';
+    });
+    h += '</div>';
+  });
+  body.innerHTML = h;
+  $("newsSub").textContent = "atualizado " + relTime(new Date(newsData.t));
+}
+function newsText(topicFilter){
+  if(!newsData || !newsData.topics || !newsData.topics.length)
+    return "Ainda não tenho notícias carregadas, " + CONFIG.address + ". Verifique se a antena está ligada.";
+  let tps = newsData.topics;
+  if(topicFilter){
+    const f = norm(topicFilter);
+    tps = tps.filter(t => norm(t.label).includes(f) || f.includes(norm(t.label).split(" ")[0]));
+    if(!tps.length) return "Não acompanho esse assunto no radar, " + CONFIG.address + ". Os assuntos são: " + NEWS_TOPICS.map(t => t.label).join(", ") + ".";
+  }
+  const parts = tps.map(t => t.items.length ? t.label + ": " + t.items.slice(0, topicFilter ? 4 : 2).map(i => i.title).join(". ") : null).filter(Boolean);
+  return parts.length ? "Manchetes do radar. " + parts.join(". ") : "Sem manchetes carregadas no momento, " + CONFIG.address + ".";
+}
+
+/* ═══════════ CLIMA (Open-Meteo · sem chave, direto do navegador) ═══════════ */
+function wmoDesc(c){
+  if(c === 0) return "céu limpo"; if(c <= 2) return "parcialmente nublado"; if(c === 3) return "nublado";
+  if(c <= 48) return "neblina"; if(c <= 57) return "garoa"; if(c <= 67) return "chuva";
+  if(c <= 77) return "neve"; if(c <= 82) return "pancadas de chuva"; if(c <= 86) return "neve"; return "tempestade";
+}
+async function getWeather(){
+  try{
+    let loc = loadLS("jarvis_weather_loc", null);
+    if(!loc){
+      const g = await (await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(CITY) + "&count=1&language=pt&format=json")).json();
+      if(!g.results || !g.results.length) return null;
+      loc = { name: g.results[0].name, lat: g.results[0].latitude, lon: g.results[0].longitude };
+      saveLS("jarvis_weather_loc", loc);
+    }
+    const w = await (await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + loc.lat + "&longitude=" + loc.lon +
+      "&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=America%2FSao_Paulo&forecast_days=1")).json();
+    return { cidade: loc.name, tmax: Math.round(w.daily.temperature_2m_max[0]), tmin: Math.round(w.daily.temperature_2m_min[0]), desc: wmoDesc(w.daily.weather_code[0]) };
+  }catch(e){ return null; }
+}
+
+/* ═══════════ MORNING DIGEST ═══════════ */
+function todayKeyStr(){ return dayKey(new Date()); }
+async function runDigest(source){
+  if(source === "auto" && localStorage.getItem("jarvis_last_digest") === todayKeyStr()) return;
+  showPanel("digest");
+  const box = $("digestBox");
+  box.textContent = "Montando seu briefing…";
+  setState("thinking", "MONTANDO DIGEST…");
+  const wx = await getWeather();
+  const hoje = todayEvents().slice(0, 15).map(e => (e.allDay ? "dia todo" : hhmm(e.start)) + " · " + e.title);
+  const acoes = mails.filter(m => triage[m.id] && triage[m.id].balde === "acao").slice(0, 6).map(m => triage[m.id].resumo);
+  const manchetes = (newsData && newsData.topics ? newsData.topics : [])
+    .filter(t => t.items.length)
+    .map(t => t.label + ": " + t.items.slice(0, 3).map(i => i.title).join(" | "));
+  const metas = notes.filter(n => n.area === "metas").slice(0, 2).map(n => n.title + " — " + n.body.slice(0, 100));
+  const dataStr = new Date().toLocaleDateString("pt-BR", { weekday:"long", day:"numeric", month:"long" });
+  const pacote = "Data: " + dataStr + "\n"
+    + (wx ? "Clima em " + wx.cidade + ": " + wx.desc + ", mínima " + wx.tmin + "°C, máxima " + wx.tmax + "°C\n" : "")
+    + "Agenda de hoje: " + (hoje.length ? hoje.join(" · ") : "livre") + "\n"
+    + "E-mails: " + mails.length + " na caixa, " + acoes.length + " pedem ação" + (acoes.length ? " → " + acoes.join(" | ") : "") + "\n"
+    + "Manchetes: " + (manchetes.length ? manchetes.join("\n") : "sem notícias carregadas") + "\n"
+    + "Metas do usuário: " + (metas.join(" | ") || "—");
+  const key = getKey();
+  let texto = "";
+  if(key){
+    try{
+      const sys = "Você é " + CONFIG.name + ", mordomo britânico pessoal, tratando o usuário SEMPRE como \"" + CONFIG.address +
+        "\". Monte um briefing matinal FALADO em português do Brasil com os dados fornecidos: saudação elegante com o dia, clima, agenda evento por evento, e-mails que pedem ação, principais manchetes por assunto e, no fim, UMA frase de foco do dia ligada às metas. Texto corrido e natural, sem emojis, sem markdown, sem listas — aproximadamente 30 segundos de fala.";
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true", "content-type":"application/json" },
+        body: JSON.stringify({ model: CONFIG.model, max_tokens: 500, thinking:{ type:"disabled" }, system: sys,
+          messages:[{ role:"user", content: pacote }] })
+      });
+      if(res.ok){
+        const data = await res.json();
+        if(Array.isArray(data.content)) data.content.forEach(b => { if(b.type === "text" && b.text) texto += b.text; });
+        texto = texto.trim();
+      }
+    }catch(e){ /* fallback offline abaixo */ }
+  }
+  if(!texto){
+    texto = "Bom dia, " + CONFIG.address + ". Hoje é " + dataStr + "."
+      + (wx ? " Clima: " + wx.desc + ", entre " + wx.tmin + " e " + wx.tmax + " graus." : "")
+      + " Agenda de hoje: " + (hoje.length ? hoje.join("; ") : "livre") + "."
+      + " E-mails pedindo ação: " + acoes.length + (acoes.length ? " — " + acoes.join("; ") : "") + "."
+      + (manchetes.length ? " Manchetes: " + manchetes.slice(0, 3).join(". ") + "." : "")
+      + " Foco do dia: um passo de cada vez rumo às suas metas, " + CONFIG.address + ".";
+  }
+  localStorage.setItem("jarvis_last_digest", todayKeyStr());
+  box.textContent = texto;
+  $("botTxt").textContent = texto;
+  speak(texto);
+}
+$("btnDigest").addEventListener("click", () => runDigest("botao"));
+
+/* ═══════════ PAINEL ⚙ CONFIG ═══════════ */
+function renderCfgAntena(){
+  const el = $("cfgAntena"); if(!el) return;
+  el.innerHTML = '<h4>📡 ANTENA</h4><div class="help">' + (antenaOK
+    ? '<span style="color:var(--ok)">🟢 ONLINE na porta 4242</span> — agenda, e-mails e notícias liberados.'
+    : '<span style="color:var(--err)">🔴 OFFLINE</span> — abra um terminal nesta pasta e rode <b>node server.js</b> (deixe o terminal aberto).') + '</div>';
+}
+function renderCfgCals(){
+  const box = $("cfgCalRows");
+  box.innerHTML = "";
+  calendars.forEach((c, i) => {
+    const row = document.createElement("div"); row.className = "cfgRow";
+    row.innerHTML = '<input type="text" data-f="name" data-i="' + i + '" value="' + esc(c.name) + '" style="max-width:110px" placeholder="nome">'
+      + '<input type="color" data-f="color" data-i="' + i + '" value="' + esc(c.color) + '">'
+      + '<input type="text" data-f="url" data-i="' + i + '" value="' + esc(c.url) + '" placeholder="cole aqui o endereço secreto .ics">'
+      + '<button class="xbtn" data-del="' + i + '" title="remover">✕</button>';
+    box.appendChild(row);
+  });
+}
+function renderCfgMails(){
+  const box = $("cfgMailRows");
+  box.innerHTML = "";
+  emailAccounts.forEach((a, i) => {
+    const row = document.createElement("div"); row.className = "cfgRow";
+    row.innerHTML = '<input type="text" data-k="mail" data-f="name" data-i="' + i + '" value="' + esc(a.name) + '" style="max-width:90px" placeholder="apelido">'
+      + '<input type="color" data-k="mail" data-f="color" data-i="' + i + '" value="' + esc(a.color) + '">'
+      + '<input type="text" data-k="mail" data-f="email" data-i="' + i + '" value="' + esc(a.email) + '" placeholder="seuemail@gmail.com">'
+      + '<input type="password" data-k="mail" data-f="pass" data-i="' + i + '" value="' + esc(a.pass) + '" placeholder="senha de app (16 letras)">'
+      + '<button class="xbtn" data-delmail="' + i + '" title="remover">✕</button>';
+    box.appendChild(row);
+  });
+}
+function renderCfgModel(){
+  const box = $("cfgModel");
+  box.innerHTML = "";
+  MODELS.forEach(m => {
+    const b = document.createElement("button");
+    if(CONFIG.model === m.id) b.className = "on";
+    b.innerHTML = "<b>" + m.label + "</b><br><span style='font-size:11px;color:var(--dim)'>" + m.desc + "</span>";
+    b.addEventListener("click", () => { CONFIG.model = m.id; localStorage.setItem("jarvis_model", m.id); renderCfgModel(); });
+    box.appendChild(b);
+  });
+}
+$("panel-config").addEventListener("change", e => {
+  const t = e.target, i = parseInt(t.dataset.i, 10), f = t.dataset.f;
+  if(!f || isNaN(i)) return;
+  if(t.dataset.k === "mail"){ if(emailAccounts[i]){ emailAccounts[i][f] = t.value; saveLS("jarvis_emails", emailAccounts); } }
+  else if(calendars[i]){ calendars[i][f] = t.value; saveLS("jarvis_calendars", calendars); }
+});
+$("panel-config").addEventListener("click", e => {
+  const dc = e.target.closest("[data-del]");
+  if(dc){ calendars.splice(+dc.dataset.del, 1); saveLS("jarvis_calendars", calendars); renderCfgCals(); return; }
+  const dm = e.target.closest("[data-delmail]");
+  if(dm){ emailAccounts.splice(+dm.dataset.delmail, 1); saveLS("jarvis_emails", emailAccounts); renderCfgMails(); return; }
+});
+$("btnAddCal").addEventListener("click", () => { calendars.push({ id:"c" + Date.now(), name:"Agenda", color:"#2dd4ff", url:"" }); saveLS("jarvis_calendars", calendars); renderCfgCals(); });
+$("btnAddMail").addEventListener("click", () => { emailAccounts.push({ id:"e" + Date.now(), name:"Conta", color:"#2dd4ff", host:"imap.gmail.com", email:"", pass:"", qtd:20 }); saveLS("jarvis_emails", emailAccounts); renderCfgMails(); });
+$("btnAgendaRefresh").addEventListener("click", () => refreshAgenda());
+$("btnEmailRefresh").addEventListener("click", () => refreshEmails(true));
+$("btnNewsRefresh").addEventListener("click", () => refreshNews(true));
+
+/* ═══════════ ENVELOPES DA PARTE 1 (nada reescrito) ═══════════ */
+/* 1) roteador de comandos: primeiro tenta resolver LOCALMENTE (sem gastar API) */
+const _p1ProcessCommand = processCommand;
+processCommand = async function(text){
+  if(busy) return;
+  if(await tryLocalCommand(text)) return;
+  return _p1ProcessCommand(text);
+};
+async function tryLocalCommand(text){
+  const n = norm(text);
+  const show = (panel, fala) => {
+    awake = false;
+    $("youTxt").textContent = text;
+    if(panel) showPanel(panel);
+    $("botTxt").textContent = fala;
+    speak(fala);
+  };
+  if(/\bbom dia\b/.test(n)){ awake = false; $("youTxt").textContent = text; runDigest("voz"); return true; }
+  if(/atualizar (os )?e ?-?mails?/.test(n)){ show("emails", "Atualizando seus e-mails, " + CONFIG.address + "."); refreshEmails(true); return true; }
+  if(/atualizar (as )?noticias/.test(n)){ show("news", "Atualizando o radar de notícias, " + CONFIG.address + "."); refreshNews(true); return true; }
+  if(/minha agenda|o que (eu )?tenho hoje|agenda de hoje|compromissos de hoje/.test(n)){ show("agenda", agendaTodayText()); return true; }
+  if(/proximo compromisso|proxima reuniao|proximo evento/.test(n)){ show("agenda", nextEventText()); return true; }
+  if(/agenda da semana|minha semana/.test(n)){ show("agenda", weekText()); return true; }
+  if(/tem e ?-?mail importante|algum e ?-?mail importante|e ?-?mail urgente/.test(n)){ show("emails", emailImportantText()); return true; }
+  if(/meus e ?-?mails?|caixa de entrada/.test(n)){ show("emails", emailsText()); return true; }
+  const mNews = n.match(/noticias? (?:de |do |da |sobre )(.+)/);
+  if(mNews){ show("news", newsText(mNews[1])); return true; }
+  if(/\bnoticias?\b|\bmanchetes?\b/.test(n)){ show("news", newsText(null)); return true; }
+  return false;
+}
+/* 2) system prompt: concatena contexto ao vivo SEM apagar o Second Brain */
+const _p1BuildSystem = buildSystem;
+buildSystem = function(){
+  const hoje = todayEvents().slice(0, 10).map(e => (e.allDay ? "dia todo" : hhmm(e.start)) + " " + e.title).join(" · ");
+  const nAcao = mails.filter(m => triage[m.id] && triage[m.id].balde === "acao").length;
+  return _p1BuildSystem()
+    + "\n\nCONTEXTO AO VIVO:\nAgenda de hoje: " + (hoje || "sem eventos carregados")
+    + "\nE-mails pedindo ação: " + nAcao
+    + "\nVocê agora também tem módulos de: central de agenda (Google iCal), central de e-mails com triagem AÇÃO/INFO/RUÍDO, radar de notícias (Forex/Dólar, Turismo, Saquarema, Economia, Política) e morning digest. Se perguntarem o que você sabe fazer, cite os comandos de voz: minha agenda; próximo compromisso; agenda da semana; meus e-mails; tem e-mail importante; notícias; notícias de um assunto; bom dia (dispara o digest); atualizar e-mails; atualizar notícias.";
+};
+/* 3) ativação: liga os módulos e dispara o digest automático (1ª vez do dia) */
+$("btnActivate").addEventListener("click", () => {
+  pingAntena().then(() => { refreshAgenda(); refreshEmails(false); refreshNews(false); });
+  const waitIdle = setInterval(() => {
+    if(!busy && !speechSynthesis.speaking){
+      clearInterval(waitIdle);
+      setTimeout(() => runDigest("auto"), 1200);
+    }
+  }, 700);
+  setTimeout(() => clearInterval(waitIdle), 30000);
+});
+
+/* ---------- timers + init ---------- */
+setInterval(() => { if(calendars.some(c => c.url)) refreshAgenda(); }, AGENDA_TTL);
+setInterval(() => { if(emailAccounts.some(a => a.email && a.pass)) refreshEmails(false); }, EMAIL_TTL);
+setInterval(() => refreshNews(false), NEWS_TTL);
+setInterval(() => { if($("panel-agenda").classList.contains("on") && events.length) renderAgenda(); }, 60000);
+setInterval(pingAntena, 60000);
+
+$("agendaBody").innerHTML = '<div class="hintTxt">Ative o sistema ou clique em ↻ para sincronizar (antena ligada).</div>';
+$("emailBody").innerHTML = '<div class="hintTxt">Configure sua conta no ⚙ (e-mail + senha de app) e clique em ↻.</div>';
+renderCfgAntena(); renderCfgCals(); renderCfgMails(); renderCfgModel();
+renderNews();
+pingAntena();
 </script>
 </body>
 </html>
